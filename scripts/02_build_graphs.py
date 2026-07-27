@@ -57,9 +57,7 @@ def main():
     logger.info("Entity graph avg degree: %.2f", entity_avg_degree)
 
     # --- Metadata graph ---
-    metadata_builder = MetadataGraphBuilder(
-        date_window_days=cfg["metadata_graph"]["date_window_days"]
-    )
+    metadata_builder = MetadataGraphBuilder()
     metadata_data, metadata_tn, metadata_te = metadata_builder.build(
         corpus, embeddings, entities, edge_embedder=embed_fn
     )
