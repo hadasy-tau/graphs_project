@@ -135,7 +135,7 @@ def test_pipeline():
                            batch_size=cfg["embedding"]["batch_size"])
 
     entity_builder = EntityGraphBuilder(cfg["entity_graph"]["min_shared_entities"])
-    metadata_builder = MetadataGraphBuilder(cfg["metadata_graph"]["date_window_days"])
+    metadata_builder = MetadataGraphBuilder()
 
     # The entity graph is built first because its density sets the semantic
     # graph's k - otherwise the two would differ in edge count as well as in
