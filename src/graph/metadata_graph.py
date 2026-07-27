@@ -1,4 +1,4 @@
-"""Metadata-based graph: connect documents sharing category, source, or publication date."""
+"""Metadata-based graph: connect documents that share at least 2 metadata fields."""
 from __future__ import annotations
 
 import logging
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class MetadataGraphBuilder(GraphBuilder):
-    """Add edge (i, j) when docs match on category, source, or publication date window."""
+    """Add edge (i, j) when docs share at least 2 of: category, source, author, publication date."""
 
     def __init__(self, date_window_days: int = 3):
         self.date_window_days = date_window_days
@@ -30,7 +30,7 @@ class MetadataGraphBuilder(GraphBuilder):
         for i in range(n):
             for j in range(i + 1, n):
                 matching = _matching_fields(corpus[i], corpus[j], dates[i], dates[j], self.date_window_days)
-                if len(matching) >= 2:
+                if matching:
                     edge_text = "Same " + ", ".join(matching)
                     edges.append((i, j, edge_text))
 
@@ -68,9 +68,12 @@ def _matching_fields(
     if src_i and src_j and src_i == src_j:
         matches.append(f"source: {src_i}")
 
-    if date_i and date_j:
-        delta = abs((date_i - date_j).days)
-        if delta <= date_window_days:
-            matches.append(f"publication date (within {date_window_days} days)")
+    auth_i = (doc_i.get("author") or "").strip().lower()
+    auth_j = (doc_j.get("author") or "").strip().lower()
+    if auth_i and auth_j and auth_i == auth_j:
+        matches.append(f"author: {auth_i}")
 
-    return matches
+    if date_i and date_j and abs((date_i - date_j).days) <= date_window_days:
+        matches.append(f"publication date (within {date_window_days} days)")
+
+    return matches if len(matches) >= 2 else []

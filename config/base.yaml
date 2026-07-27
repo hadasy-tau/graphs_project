@@ -18,7 +18,7 @@ metadata_graph:
   date_window_days: 3
 
 semantic_graph:
-  threshold: 0.75
+  threshold: 0.5
   mutual_knn_k: null   # set automatically to match entity graph avg degree
 
 pcst:
