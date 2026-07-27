@@ -14,9 +14,10 @@ python tests/test_pipeline_smoke.py
 python -m pytest tests/test_pipeline_smoke.py -s
 ```
 
-In VS Code, `.vscode/launch.json` has the configurations ready — pick
-**"Smoke test: full pipeline (debug)"** and press F5. `justMyCode` is off, so
-you can also step into PyG's `retrieval_via_pcst`.
+To debug it in VS Code, open the file and press F5. Turn off
+**Python › Debugging: Just My Code** in settings first, otherwise the debugger
+refuses to step into library code and you can't see inside PyG's
+`retrieval_via_pcst` — the actual G-Retriever subgraph selection.
 
 Results go to `data/smoke_run/`: the four graphs, one JSONL per retrieval
 condition, and `metrics/summary_table.csv`. Document embeddings are cached
