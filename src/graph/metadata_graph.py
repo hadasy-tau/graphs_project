@@ -30,7 +30,7 @@ class MetadataGraphBuilder(GraphBuilder):
         for i in range(n):
             for j in range(i + 1, n):
                 matching = _matching_fields(corpus[i], corpus[j], dates[i], dates[j], self.date_window_days)
-                if matching:
+                if len(matching) >= 2:
                     edge_text = "Same " + ", ".join(matching)
                     edges.append((i, j, edge_text))
 

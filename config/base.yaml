@@ -12,7 +12,7 @@ ner:
   canonicalize_threshold: 0.85  # rapidfuzz ratio for merging near-duplicates
 
 entity_graph:
-  min_shared_entities: 1
+  min_shared_entities: 2
 
 metadata_graph:
   date_window_days: 3
