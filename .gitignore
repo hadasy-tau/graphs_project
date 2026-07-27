@@ -1,0 +1,13 @@
+# Pipeline artifacts (regenerate with scripts/01..04 or the smoke test)
+data/processed/
+data/graphs/
+data/smoke_run/
+results/
+
+# Not ignored: tests/fixtures/*.jsonl is committed on purpose so the
+# smoke test runs offline.
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
