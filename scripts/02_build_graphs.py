@@ -107,7 +107,6 @@ def main():
         assert len(te) == data.edge_index.shape[1], f"{name}: textual_edges rows != num_edges"
         assert not data.edge_attr.isnan().any(), f"{name}: NaN in edge_attr"
 
-        builder = list(graphs.values()).index((data, tn, te))  # for stats dispatch
         stats = entity_builder.compute_stats(data, queries, name=name)
         all_stats.append(stats)
         logger.info("Saved %s graph", name)
