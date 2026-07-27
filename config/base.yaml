@@ -1,0 +1,30 @@
+embedding:
+  model: "BAAI/bge-large-en-v1.5"
+  dim: 1024
+  batch_size: 64
+  max_tokens: 512
+
+ner:
+  model: "en_core_web_lg"
+  batch_size: 64
+  keep_types: [PERSON, ORG, GPE, LOC, FAC, EVENT, PRODUCT]
+  stop_entity_threshold: 0.20   # exclude entities in >20% of docs
+  canonicalize_threshold: 0.85  # rapidfuzz ratio for merging near-duplicates
+
+entity_graph:
+  min_shared_entities: 1
+
+metadata_graph:
+  date_window_days: 3
+
+semantic_graph:
+  threshold: 0.75
+  mutual_knn_k: null   # set automatically to match entity graph avg degree
+
+pcst:
+  topk: 3
+  topk_e: 5
+  cost_e: 0.5
+
+dense_baseline:
+  k: null   # set automatically to match average PCST output size

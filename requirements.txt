@@ -1,0 +1,16 @@
+datasets>=2.19
+torch>=2.2
+torch-geometric>=2.5
+networkx>=3.3
+sentence-transformers>=3.0
+spacy>=3.7
+en-core-web-lg @ https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.7.1/en_core_web_lg-3.7.1-py3-none-any.whl
+pcst-fast>=1.0
+scikit-learn>=1.4
+pandas>=2.2
+matplotlib>=3.9
+seaborn>=0.13
+pyyaml>=6.0
+tqdm>=4.66
+rapidfuzz>=3.0
+numpy>=1.26
