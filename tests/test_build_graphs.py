@@ -102,8 +102,8 @@ def build_graphs(config_path, n_docs=None, n_queries=None, seed=SEED):
     print(f"NER        : {cfg['ner']['model']}")
     print(f"output     : {out}")
     if exact:
-        print("\nFULL CORPUS - these are exactly the graphs config/base.yaml produces\n"
-              "(assuming this config IS base.yaml; the models above are what matters).")
+        print(f"\nFULL CORPUS, no subsetting - these are exactly the graphs "
+              f"{Path(config_path).name} produces.")
     else:
         print(f"\nSUBSET of {len(corpus)}/{full_corpus_size} docs. The metadata graph is exact;\n"
               "entity and semantic (and so combined) are APPROXIMATE - see the module\n"
