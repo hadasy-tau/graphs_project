@@ -7,6 +7,10 @@ Two tests with different jobs.
 | `test_pipeline_smoke.py` | Does the pipeline run end to end? Tiny data, scaled-down models, under a minute. Says nothing about graph quality. |
 | `test_build_graphs.py` | Builds the four graph variants and dumps them to CSV so you can study them. Runs on the **full corpus with the real models**. |
 
+Plus three supporting files you rarely need to open: `common.py` (dataset
+subsetting and logging setup, shared by both tests and the fixture builder),
+`pcst_fallback.py`, and `fixtures/`.
+
 ---
 
 # 1. Pipeline smoke test
@@ -45,6 +49,10 @@ leaving nothing to retrieve. So it picks queries first, keeps all the documents
 they need, pads with distractors, and renumbers `doc_id` — the pipeline uses
 `doc_id` as a graph node index, so document 7 has to be row 7 of the embedding
 matrix and node 7 of the graph.
+
+That selection logic lives in `common.py` as `subset_corpus`, because
+`test_build_graphs.py --docs N` needs exactly the same thing at runtime.
+`build_fixture.py` is just a CLI around it that writes the result to JSONL.
 
 To cut a different slice (the rule of thumb is 5 documents per query, which is
 where 8 → 40 comes from; the file explains the reasoning and the cost):

@@ -17,19 +17,19 @@ solver. Neither is suitable for real results - see tests/README.md.
 """
 from __future__ import annotations
 
-import logging
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))              # so `import src...` works
-sys.path.insert(0, str(Path(__file__).resolve().parent))  # so `import pcst_fallback` works
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # so `import common` works
 
 import pandas as pd
 import torch
 import yaml
 
 import pcst_fallback
+from common import setup_logging
 from src.data.embedder import embed_documents, embed_queries, embed_texts, load_or_compute
 from src.data.loader import load_jsonl, save_jsonl
 from src.data.preprocessor import clean_text, extract_entities
@@ -46,14 +46,14 @@ OUT = ROOT / "data" / "smoke_run"
 GRAPH_NAMES = ["entity", "metadata", "semantic", "combined"]
 
 
-def test_pipeline():
+def test_pipeline_smoke():
     """Run every stage and check that each one produced something valid.
 
     The assertions are about structure - shapes line up, ids are in range,
     metrics are in [0, 1]. They deliberately say nothing about which graph
     retrieves better: 40 documents cannot answer that question.
     """
-    _setup_logging()
+    setup_logging()
     OUT.mkdir(parents=True, exist_ok=True)
     cfg = yaml.safe_load(open(ROOT / "config" / "test_small.yaml"))
 
@@ -279,15 +279,5 @@ def test_pipeline():
     print(f"\nartifacts in {OUT}")
 
 
-def _setup_logging():
-    """INFO logs from src/, without the download chatter. UTF-8 for Windows."""
-    for stream in (sys.stdout, sys.stderr):
-        if hasattr(stream, "reconfigure"):
-            stream.reconfigure(encoding="utf-8", errors="replace")
-    logging.basicConfig(level=logging.INFO, format="%(levelname)-7s %(name)s: %(message)s")
-    for noisy in ("httpx", "urllib3", "filelock", "sentence_transformers", "datasets"):
-        logging.getLogger(noisy).setLevel(logging.WARNING)
-
-
 if __name__ == "__main__":
-    test_pipeline()
+    test_pipeline_smoke()

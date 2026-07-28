@@ -41,12 +41,12 @@ from __future__ import annotations
 import argparse
 import itertools
 import json
-import logging
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT))                             # so `import src...` works
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # so `import common` works
 
 import networkx as nx
 import pandas as pd
@@ -54,6 +54,7 @@ import torch
 import yaml
 from torch_geometric.data import Data
 
+from common import SEED, setup_logging, subset_corpus
 from src.data.embedder import embed_documents, load_or_compute
 from src.data.loader import load_multihop_rag
 from src.data.preprocessor import clean_text, extract_entities
@@ -63,7 +64,6 @@ from src.graph.metadata_graph import MetadataGraphBuilder
 from src.graph.semantic_graph import SemanticGraphBuilder
 
 OUT_ROOT = ROOT / "data" / "graph_runs"
-SEED = 20260727
 
 # What `pytest` runs: small models, small slice, seconds not minutes.
 PYTEST_CONFIG = ROOT / "config" / "test_small.yaml"
@@ -83,12 +83,12 @@ def build_graphs(config_path, n_docs=None, n_queries=None, seed=SEED):
 
     Returns a dict of {graph name -> list of (src, dst, edge_text)}.
     """
-    _setup_logging()
+    setup_logging()
     cfg = yaml.safe_load(open(config_path))
 
     corpus, queries = load_multihop_rag()
     full_corpus_size = len(corpus)
-    corpus, queries = _subset(corpus, queries, n_docs, n_queries, seed)
+    corpus, queries = subset_corpus(corpus, queries, n_docs, n_queries, seed)
     exact = len(corpus) == full_corpus_size
 
     run_name = f"{Path(config_path).stem}_{len(corpus)}docs"
@@ -144,6 +144,24 @@ def build_graphs(config_path, n_docs=None, n_queries=None, seed=SEED):
 
     _save(corpus, queries, entities, graphs, out)
     return graphs
+
+
+def _load_or_extract_entities(corpus, cfg, path):
+    """NER is slow, so cache it next to the embeddings."""
+    if path.exists():
+        print(f"loading cached entities from {path.name}")
+        return {int(k): set(v) for k, v in json.load(open(path)).items()}
+
+    entities = extract_entities(
+        corpus,
+        model_name=cfg["ner"]["model"],
+        batch_size=cfg["ner"]["batch_size"],
+        keep_types=frozenset(cfg["ner"]["keep_types"]),
+        stop_entity_threshold=cfg["ner"]["stop_entity_threshold"],
+        canonicalize_threshold=cfg["ner"]["canonicalize_threshold"],
+    )
+    json.dump({k: sorted(v) for k, v in entities.items()}, open(path, "w"))
+    return entities
 
 
 def _save(corpus, queries, entities, graphs, out):
@@ -239,67 +257,8 @@ def _save(corpus, queries, entities, graphs, out):
         total = sub["n_gold_pairs"].sum()
         print(f"{s['name']:<10}{s['n_edges']:>8}{s['avg_degree']:>9.2f}{s['n_components']:>12}"
               f"{f'{sub.direct_edges.sum()}/{total}':>27}{f'{sub.pairs_reachable.sum()}/{total}':>19}")
-    print(f"\nwrote documents.csv, queries.csv, graph_stats.csv, gold_connectivity.csv,")
+    print("\nwrote documents.csv, queries.csv, graph_stats.csv, gold_connectivity.csv,")
     print(f"and per graph an _edges.csv and an _adjacency.csv, to {out}")
-
-
-def _subset(corpus, queries, n_docs, n_queries, seed):
-    """Take n_docs documents, keeping the gold evidence of the kept queries.
-
-    Documents are renumbered 0..n-1 because doc_id is a graph node index.
-    """
-    if n_docs is None or n_docs >= len(corpus):
-        keep_queries = queries if n_queries is None else queries[:n_queries]
-        return corpus, [q for q in keep_queries if q["gold_doc_ids"]]
-
-    import random
-    rng = random.Random(seed)
-
-    # queries first, so their evidence is guaranteed to be in the corpus
-    eligible = [q for q in queries if 2 <= len(set(q["gold_doc_ids"])) <= 4]
-    picked = rng.sample(eligible, min(n_queries or len(eligible), len(eligible)))
-
-    gold = sorted({d for q in picked for d in q["gold_doc_ids"]})
-    while len(gold) > n_docs:            # too many queries for this corpus size
-        picked.pop()
-        gold = sorted({d for q in picked for d in q["gold_doc_ids"]})
-
-    others = [i for i in range(len(corpus)) if i not in set(gold)]
-    keep = sorted(gold + rng.sample(others, n_docs - len(gold)))
-    new_id = {old: i for i, old in enumerate(keep)}
-
-    sub_corpus = [{**corpus[old], "doc_id": i} for i, old in enumerate(keep)]
-    sub_queries = [{**q, "query_id": i,
-                    "gold_doc_ids": sorted({new_id[d] for d in q["gold_doc_ids"]})}
-                   for i, q in enumerate(picked)]
-    return sub_corpus, sub_queries
-
-
-def _load_or_extract_entities(corpus, cfg, path):
-    """NER is slow, so cache it next to the embeddings."""
-    if path.exists():
-        print(f"loading cached entities from {path.name}")
-        return {int(k): set(v) for k, v in json.load(open(path)).items()}
-
-    entities = extract_entities(
-        corpus,
-        model_name=cfg["ner"]["model"],
-        batch_size=cfg["ner"]["batch_size"],
-        keep_types=frozenset(cfg["ner"]["keep_types"]),
-        stop_entity_threshold=cfg["ner"]["stop_entity_threshold"],
-        canonicalize_threshold=cfg["ner"]["canonicalize_threshold"],
-    )
-    json.dump({k: sorted(v) for k, v in entities.items()}, open(path, "w"))
-    return entities
-
-
-def _setup_logging():
-    for stream in (sys.stdout, sys.stderr):
-        if hasattr(stream, "reconfigure"):
-            stream.reconfigure(encoding="utf-8", errors="replace")
-    logging.basicConfig(level=logging.INFO, format="%(levelname)-7s %(name)s: %(message)s")
-    for noisy in ("httpx", "urllib3", "filelock", "sentence_transformers", "datasets"):
-        logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
 def test_build_graphs():
