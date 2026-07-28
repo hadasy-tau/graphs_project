@@ -9,6 +9,7 @@ import torch
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "BAAI/bge-large-en-v1.5"
+DEFAULT_QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
 
 
 def embed_texts(
@@ -60,9 +61,14 @@ def embed_queries(
     model_name: str = DEFAULT_MODEL,
     batch_size: int = 128,
     device: str | None = None,
+    query_prefix: str = DEFAULT_QUERY_PREFIX,
 ) -> torch.Tensor:
-    """Embed query strings. Returns (N_queries, D) tensor."""
-    texts = [q["query"] for q in queries]
+    """Embed query strings with an optional retrieval instruction prefix.
+
+    For BGE retrieval models, the prefix is applied to queries only.
+    Documents remain unprefixed.
+    """
+    texts = [query_prefix + q["query"] for q in queries]
     return embed_texts(texts, model_name=model_name, batch_size=batch_size, device=device)
 
 
