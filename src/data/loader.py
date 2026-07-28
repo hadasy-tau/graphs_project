@@ -70,6 +70,7 @@ def _build_corpus(dataset) -> list[dict]:
             "published_at": row.get("published_at", row.get("date", "")),
             "category": row.get("category", row.get("topic", "")),
             "url": row.get("url", ""),
+            "author": row.get("author", row.get("authors", "")) or "",
         })
     return rows
 

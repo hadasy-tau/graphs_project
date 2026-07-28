@@ -2,12 +2,22 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import torch
+import yaml
 
 from src.graph.base import GraphBuilder
 
 logger = logging.getLogger(__name__)
+
+_CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "base.yaml"
+_UNSET = object()
+
+
+def _load_sem_cfg() -> dict:
+    with open(_CONFIG_PATH) as f:
+        return yaml.safe_load(f)["semantic_graph"]
 
 
 class SemanticGraphBuilder(GraphBuilder):
@@ -16,13 +26,22 @@ class SemanticGraphBuilder(GraphBuilder):
     Applies mutual k-NN sparsification to control for graph density as a
     confounding variable: edge (i,j) is kept only if j is in i's top-K
     neighbors AND i is in j's top-K neighbors.
+
+    When threshold or mutual_knn_k are not provided, values are read from
+    config/base.yaml so there is no hardcoded fallback.
     """
 
     def __init__(
         self,
-        threshold: float = 0.75,
-        mutual_knn_k: int | None = None,
+        threshold: float | object = _UNSET,
+        mutual_knn_k: int | None | object = _UNSET,
     ):
+        if threshold is _UNSET or mutual_knn_k is _UNSET:
+            sem_cfg = _load_sem_cfg()
+            if threshold is _UNSET:
+                threshold = sem_cfg["threshold"]
+            if mutual_knn_k is _UNSET:
+                mutual_knn_k = sem_cfg.get("mutual_knn_k")
         self.threshold = threshold
         self.mutual_knn_k = mutual_knn_k  # None = no mutual k-NN constraint
 
