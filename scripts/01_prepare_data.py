@@ -64,6 +64,7 @@ def main():
         queries,
         model_name=cfg["embedding"]["model"],
         batch_size=cfg["embedding"]["batch_size"],
+        query_prefix=cfg["embedding"].get("query_prefix", ""),
     )
 
     # --- 7. Extract and cache named entities ---

@@ -5,7 +5,6 @@ import logging
 from pathlib import Path
 
 import torch
-import torch.nn.functional as F
 import yaml
 
 from src.graph.base import GraphBuilder
@@ -54,12 +53,11 @@ class SemanticGraphBuilder(GraphBuilder):
     ) -> list[tuple[int, int, str]]:
         n = embeddings.shape[0]
 
-        # Full N×N cosine similarity matrix (~3MB at float32 for 609 docs)
-        sim = F.cosine_similarity(
-            embeddings.unsqueeze(1),  # (N, 1, D)
-            embeddings.unsqueeze(0),  # (1, N, D)
-            dim=-1,
-        )  # (N, N)
+        # For unit-length vectors cosine similarity is the dot product, so the
+        # whole N x N matrix is a single matmul.
+        if (embeddings.norm(dim=1) - 1).abs().max() > 1e-3:
+            raise ValueError("SemanticGraphBuilder needs unit-normalized embeddings")
+        sim = embeddings @ embeddings.T  # (N, N)
 
         # Zero diagonal (no self-loops) and threshold
         sim.fill_diagonal_(0.0)

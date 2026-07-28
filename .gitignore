@@ -1,7 +1,7 @@
-# Pipeline artifacts (regenerate with scripts/01..04 or the smoke test)
-data/processed/
-data/graphs/
-data/smoke_run/
+# Pipeline artifacts (regenerate with scripts/01..04 or the tests).
+# Includes data/graph_runs/, where test_build_graphs.py writes its CSVs -
+# a full-corpus run is ~20 MB, which does not belong in git.
+data/
 results/
 
 # Not ignored: tests/fixtures/*.jsonl is committed on purpose so the
