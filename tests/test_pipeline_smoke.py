@@ -98,7 +98,7 @@ def test_pipeline():
 
     assert set(entities) == set(range(n_docs))
     n_empty = sum(1 for e in entities.values() if not e)
-    assert n_empty <= 4, f"{n_empty}/{n_docs} docs got no entities - NER looks broken"
+    assert n_empty <= 0.1 * n_docs, f"{n_empty}/{n_docs} docs got no entities - NER looks broken"
 
     # =====================================================================
     # 3. EMBED documents and queries  (scripts/01)
