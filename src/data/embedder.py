@@ -3,12 +3,29 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import torch
+
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "BAAI/bge-large-en-v1.5"
+
+_MODEL_CACHE: dict[tuple[str, str], "SentenceTransformer"] = {}
+
+
+def _get_model(model_name: str, device: str) -> "SentenceTransformer":
+    """Return a cached SentenceTransformer, loading it at most once per (model, device)."""
+    key = (model_name, device)
+    if key not in _MODEL_CACHE:
+        from sentence_transformers import SentenceTransformer
+
+        logger.info("Loading embedding model %s on %s", model_name, device)
+        _MODEL_CACHE[key] = SentenceTransformer(model_name, device=device)
+    return _MODEL_CACHE[key]
 
 
 def embed_texts(
@@ -23,12 +40,10 @@ def embed_texts(
     normalize=True produces unit-norm vectors, enabling cosine similarity
     via simple dot product.
     """
-    from sentence_transformers import SentenceTransformer
-
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    model = SentenceTransformer(model_name, device=device)
+    model = _get_model(model_name, device)
     embeddings = model.encode(
         texts,
         batch_size=batch_size,

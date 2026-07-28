@@ -8,7 +8,7 @@
 #     bge-large-en-v1.5 (~1.3GB, dim 1024). Real semantics, tiny download.
 #   * ner.model        — en_core_web_sm (~12MB) instead of en_core_web_lg.
 #     Real spaCy NER, slightly noisier entity spans.
-#   * semantic_graph.threshold — 0.40 instead of 0.75. MiniLM cosine
+#   * semantic_graph.threshold — 0.40 instead of 0.5. MiniLM cosine
 #     similarities on this corpus sit far lower than bge-large's (median 0.14,
 #     99th pct 0.61), so 0.75 would produce an empty graph. 0.40 lands at
 #     roughly the 95th percentile of pair similarities => a sparse but

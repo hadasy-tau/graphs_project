@@ -94,6 +94,13 @@ def main():
         "combined": (combined_data, combined_tn, combined_te),
     }
 
+    builders = {
+        "entity": entity_builder,
+        "metadata": metadata_builder,
+        "semantic": semantic_builder,
+        "combined": combined_builder,
+    }
+
     all_stats = []
     for name, (data, tn, te) in graphs.items():
         torch.save(data, GRAPHS / f"{name}_graph.pt")
@@ -105,7 +112,7 @@ def main():
         assert len(te) == data.edge_index.shape[1], f"{name}: textual_edges rows != num_edges"
         assert not data.edge_attr.isnan().any(), f"{name}: NaN in edge_attr"
 
-        stats = entity_builder.compute_stats(data, queries, name=name)
+        stats = builders[name].compute_stats(data, queries, name=name)
         all_stats.append(stats)
         logger.info("Saved %s graph", name)
 
