@@ -34,21 +34,10 @@ class SemanticGraphBuilder(GraphBuilder):
     ) -> list[tuple[int, int, str]]:
         n = embeddings.shape[0]
 
-        # Full N×N cosine similarity matrix (~1.5MB at float32 for 609 docs).
-        #
-        # For unit-length vectors cosine similarity IS the dot product, so the
-        # whole matrix is a single matmul. Do not replace this with
-        # F.cosine_similarity(emb.unsqueeze(1), emb.unsqueeze(0), dim=-1): that
-        # broadcasts both operands out to (N, N, D) and materializes them, which
-        # costs D times the memory of the result it keeps - about 3GB of scratch
-        # for 609 docs at 1024 dims, versus 1.5MB here, and ~150x slower.
-        norms = embeddings.norm(dim=1)
-        if not torch.allclose(norms, torch.ones_like(norms), atol=1e-3):
-            raise ValueError(
-                "SemanticGraphBuilder needs unit-normalized embeddings, but got "
-                f"norms in [{norms.min():.4f}, {norms.max():.4f}]. "
-                "embed_texts() normalizes by default - check that normalize=True."
-            )
+        # For unit-length vectors cosine similarity is the dot product, so the
+        # whole N x N matrix is a single matmul.
+        if (embeddings.norm(dim=1) - 1).abs().max() > 1e-3:
+            raise ValueError("SemanticGraphBuilder needs unit-normalized embeddings")
         sim = embeddings @ embeddings.T  # (N, N)
 
         # Zero diagonal (no self-loops) and threshold
