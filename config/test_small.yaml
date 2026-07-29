@@ -9,8 +9,9 @@
 #   * ner.model        — en_core_web_sm (~12MB) instead of en_core_web_lg.
 #     Real spaCy NER, slightly noisier entity spans.
 #   * entity_graph.min_shared_entities — 1 instead of 2. With only 40 docs
-#     there are few 2+ entity overlaps. Semantic edges use mutual k-NN only
-#     (no absolute similarity threshold), so MiniLM's lower cosine scale is fine.
+#     there are few 2+ entity overlaps. Semantic and metadata edges use mutual
+#     k-NN only (no absolute similarity threshold), so MiniLM's lower cosine
+#     scale needs no separate tuning.
 #
 # These values are tuned to make the FLOW observable, not to reproduce the
 # paper's numbers. Do not read experimental conclusions off this config.
@@ -28,11 +29,14 @@ ner:
   stop_entity_threshold: 0.20
   canonicalize_threshold: 0.85
 
-# Shared sparsifier for entity + semantic (null = usual density-matching behavior)
+# Shared sparsifier for entity + metadata + semantic (null = density-matching)
 mutual_knn_k: null
 
 entity_graph:
   min_shared_entities: 1
+
+metadata_graph:
+  fields: [title, author]
 
 pcst:
   topk: 3

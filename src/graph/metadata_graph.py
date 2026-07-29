@@ -1,17 +1,63 @@
-"""Metadata-based graph: connect documents that share at least 2 metadata fields."""
+"""Metadata graph: connect documents by similarity of their bibliographic record."""
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import torch
+import yaml
 
 from src.graph.base import GraphBuilder
+from src.graph.mutual_knn import cosine_mutual_knn_mask
 
 logger = logging.getLogger(__name__)
 
+_CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "base.yaml"
+_UNSET = object()
+
+
+def _load_mutual_knn_k() -> int | None:
+    with open(_CONFIG_PATH) as f:
+        return yaml.safe_load(f).get("mutual_knn_k")
+
 
 class MetadataGraphBuilder(GraphBuilder):
-    """Add edge (i, j) when docs share at least 2 of: category, source, author."""
+    """Add edge (i, j) when i and j are mutual k-NN by metadata-record similarity.
+
+    The record is a labelled rendering of the configured metadata fields
+    (see embedder.format_metadata_record), embedded with the same model as the
+    documents. This replaces an earlier rule that joined documents sharing at
+    least 2 of category/source/author: with only 6 categories and 49 sources in
+    the corpus that rule collapsed to "same publisher", producing the densest
+    and least evidence-aligned graph in the study.
+
+    Which fields to include is a measured choice, not a free parameter. Over the
+    609-doc corpus, at matched density, title+author reaches 0.438 oracle
+    connectivity against 0.393 for the old rule with 6.8x fewer edges. Adding
+    category and source on top *lowers* it to 0.401: gold evidence pairs share an
+    author 23x more often than chance, but a category only 3x, so the coarse
+    fields mostly add noise.
+
+    Note that record embeddings supply the edge STRUCTURE only. Node features
+    stay the full-document embeddings that GraphBuilder.build() puts in Data.x,
+    so retrieval scores nodes identically across all graph variants and only the
+    edges differ.
+    """
+
+    def __init__(
+        self,
+        record_embeddings: torch.Tensor,
+        mutual_knn_k: int | None | object = _UNSET,
+    ):
+        if mutual_knn_k is _UNSET:
+            mutual_knn_k = _load_mutual_knn_k()
+        if mutual_knn_k is None:
+            raise ValueError(
+                "MetadataGraphBuilder requires mutual_knn_k "
+                "(set it explicitly or as top-level mutual_knn_k in config)"
+            )
+        self.record_embeddings = record_embeddings
+        self.mutual_knn_k = mutual_knn_k
 
     def get_edges(
         self,
@@ -19,36 +65,29 @@ class MetadataGraphBuilder(GraphBuilder):
         embeddings: torch.Tensor,
         entities: dict[int, set[str]],
     ) -> list[tuple[int, int, str]]:
-        n = len(corpus)
+        # `embeddings` (document text) is deliberately unused: this graph's
+        # edges come from the metadata records instead.
+        if len(self.record_embeddings) != len(corpus):
+            raise ValueError(
+                f"record_embeddings has {len(self.record_embeddings)} rows "
+                f"but corpus has {len(corpus)} documents"
+            )
+
+        mutual_mask = cosine_mutual_knn_mask(self.record_embeddings, self.mutual_knn_k)
+
         edges = []
+        rows, cols = torch.nonzero(mutual_mask, as_tuple=True)
+        for idx in range(len(rows)):
+            i, j = rows[idx].item(), cols[idx].item()
+            if i >= j:
+                continue  # upper triangle only
+            title_i = corpus[i]["title"]
+            title_j = corpus[j]["title"]
+            edge_text = f"Similar metadata record: {title_i} and {title_j}"
+            edges.append((i, j, edge_text))
 
-        for i in range(n):
-            for j in range(i + 1, n):
-                matching = _matching_fields(corpus[i], corpus[j])
-                if matching:
-                    edge_text = "Same " + ", ".join(matching)
-                    edges.append((i, j, edge_text))
-
-        logger.info("MetadataGraph: %d edges", len(edges))
+        logger.info(
+            "MetadataGraph (mutual k-NN k=%d): %d edges",
+            self.mutual_knn_k, len(edges),
+        )
         return edges
-
-
-def _matching_fields(doc_i: dict, doc_j: dict) -> list[str]:
-    matches = []
-
-    cat_i = (doc_i.get("category") or "").strip().lower()
-    cat_j = (doc_j.get("category") or "").strip().lower()
-    if cat_i and cat_j and cat_i == cat_j:
-        matches.append(f"category: {cat_i}")
-
-    src_i = (doc_i.get("source") or "").strip().lower()
-    src_j = (doc_j.get("source") or "").strip().lower()
-    if src_i and src_j and src_i == src_j:
-        matches.append(f"source: {src_i}")
-
-    auth_i = (doc_i.get("author") or "").strip().lower()
-    auth_j = (doc_j.get("author") or "").strip().lower()
-    if auth_i and auth_j and auth_i == auth_j:
-        matches.append(f"author: {auth_i}")
-
-    return matches if len(matches) >= 2 else []

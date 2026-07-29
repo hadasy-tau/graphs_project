@@ -36,6 +36,9 @@ def main():
     corpus = load_jsonl(PROCESSED / "corpus.jsonl")
     queries = load_jsonl(PROCESSED / "queries.jsonl")
     embeddings = torch.load(PROCESSED / "embeddings.pt", weights_only=True)
+    metadata_embeddings = torch.load(
+        PROCESSED / "metadata_embeddings.pt", weights_only=True
+    )
 
     with open(PROCESSED / "entities.json") as f:
         entities = {int(k): set(v) for k, v in json.load(f).items()}
@@ -58,23 +61,28 @@ def main():
     entity_avg_degree = (entity_data.edge_index.shape[1] // 2) * 2 / len(corpus)
     logger.info("Entity graph avg degree: %.2f", entity_avg_degree)
 
+    # --- Shared mutual k-NN k for the metadata and semantic graphs ---
+    # If not pinned in config, match the entity graph's average degree so all
+    # three graphs have comparable density and only edge MEANING differs.
+    mutual_k = shared_knn_k or _target_knn_k(entity_avg_degree, len(corpus))
+    if shared_knn_k is not None:
+        logger.info("mutual_knn_k=%d (shared with entity)", mutual_k)
+    else:
+        logger.info(
+            "mutual_knn_k set to %d (targeting entity avg degree %.2f)",
+            mutual_k, entity_avg_degree,
+        )
+
     # --- Metadata graph ---
-    metadata_builder = MetadataGraphBuilder()
+    metadata_builder = MetadataGraphBuilder(
+        record_embeddings=metadata_embeddings,
+        mutual_knn_k=mutual_k,
+    )
     metadata_data, metadata_tn, metadata_te = metadata_builder.build(
         corpus, embeddings, entities, edge_embedder=embed_fn
     )
 
     # --- Semantic graph ---
-    # Shared mutual_knn_k applies to both; otherwise match entity avg degree
-    mutual_k = shared_knn_k or _target_knn_k(entity_avg_degree, len(corpus))
-    if shared_knn_k is not None:
-        logger.info("Semantic graph mutual_knn_k=%d (shared with entity)", mutual_k)
-    else:
-        logger.info(
-            "Semantic graph mutual_knn_k set to %d (targeting entity avg degree %.2f)",
-            mutual_k, entity_avg_degree,
-        )
-
     semantic_builder = SemanticGraphBuilder(mutual_knn_k=mutual_k)
     semantic_data, semantic_tn, semantic_te = semantic_builder.build(
         corpus, embeddings, entities, edge_embedder=embed_fn

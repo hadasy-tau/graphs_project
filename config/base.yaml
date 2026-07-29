@@ -12,13 +12,25 @@ ner:
   stop_entity_threshold: 0.20   # exclude entities in >20% of docs
   canonicalize_threshold: 0.90  # rapidfuzz ratio for merging near-duplicates
 
-# Shared sparsifier for entity + semantic graphs.
-# null  => entity uses min_shared_entities only; semantic k matches entity avg degree
-# int   => both graphs use this same mutual k-NN k (entity floor becomes min_shared=1)
+# Shared sparsifier for entity + metadata + semantic graphs.
+# null  => entity uses min_shared_entities only; metadata and semantic k match
+#          entity avg degree
+# int   => all three graphs use this same mutual k-NN k (entity floor becomes
+#          min_shared=1)
 mutual_knn_k: null
 
 entity_graph:
   min_shared_entities: 2
+
+metadata_graph:
+  # Fields rendered into the labelled record that gets embedded. Measured over
+  # the full corpus at matched density: title+author = 0.438 oracle
+  # connectivity, +category+source+published_at = 0.401, title alone = 0.390.
+  # Gold pairs share an author 23x more often than chance but a category only
+  # 3x, so the coarse fields dilute more than they add.
+  # NOTE: changing this list invalidates data/processed/metadata_embeddings.pt,
+  # which is cached by PATH only — delete that file when you change it.
+  fields: [title, author]
 
 pcst:
   topk: 3

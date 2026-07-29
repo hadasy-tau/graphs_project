@@ -1,4 +1,8 @@
-"""Combined graph: union of entity, metadata, and semantic edges."""
+"""Combined graph: union of entity, metadata, and semantic edges.
+
+Each sub-builder gets the same corpus and document embeddings; the metadata
+builder additionally carries its own record embeddings internally.
+"""
 from __future__ import annotations
 
 import logging
@@ -26,8 +30,12 @@ class CombinedGraphBuilder(GraphBuilder):
         metadata_builder: MetadataGraphBuilder | None = None,
         semantic_builder: SemanticGraphBuilder | None = None,
     ):
+        # metadata_builder has no usable default: it needs the metadata record
+        # embeddings, which only the caller can supply.
+        if metadata_builder is None:
+            raise ValueError("CombinedGraphBuilder requires a metadata_builder")
         self.entity_builder = entity_builder or EntityGraphBuilder()
-        self.metadata_builder = metadata_builder or MetadataGraphBuilder()
+        self.metadata_builder = metadata_builder
         self.semantic_builder = semantic_builder or SemanticGraphBuilder()
 
     def get_edges(

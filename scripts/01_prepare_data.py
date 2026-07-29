@@ -55,6 +55,23 @@ def main():
     assert not emb.isnan().any(), "NaN values in embeddings"
     logger.info("Embeddings shape: %s", tuple(emb.shape))
 
+    # --- 5b. Compute and cache metadata record embeddings (metadata graph edges) ---
+    # Cached by PATH only, so this file goes stale silently if you change
+    # metadata_graph.fields — delete it when you do.
+    from src.data.embedder import embed_metadata_records
+    meta_emb = load_or_compute(
+        PROCESSED / "metadata_embeddings.pt",
+        embed_metadata_records,
+        corpus,
+        fields=cfg["metadata_graph"]["fields"],
+        model_name=cfg["embedding"]["model"],
+        batch_size=cfg["embedding"]["batch_size"],
+    )
+    assert meta_emb.shape == (len(corpus), cfg["embedding"]["dim"]), (
+        f"Unexpected shape: {meta_emb.shape}"
+    )
+    logger.info("Metadata record embeddings shape: %s", tuple(meta_emb.shape))
+
     # --- 6. Compute and cache query embeddings ---
     from src.data.embedder import embed_queries
     q_emb_path = PROCESSED / "query_embeddings.pt"

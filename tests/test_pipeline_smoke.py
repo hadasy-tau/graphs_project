@@ -30,7 +30,13 @@ import yaml
 
 import pcst_fallback
 from common import setup_logging
-from src.data.embedder import embed_documents, embed_queries, embed_texts, load_or_compute
+from src.data.embedder import (
+    embed_documents,
+    embed_metadata_records,
+    embed_queries,
+    embed_texts,
+    load_or_compute,
+)
 from src.data.loader import load_jsonl, save_jsonl
 from src.data.preprocessor import clean_text, extract_entities
 from src.evaluation.evaluator import evaluate_all
@@ -38,7 +44,12 @@ from src.graph.combined_graph import CombinedGraphBuilder
 from src.graph.entity_graph import EntityGraphBuilder
 from src.graph.metadata_graph import MetadataGraphBuilder
 from src.graph.semantic_graph import SemanticGraphBuilder
-from src.retrieval.dense_retrieval import retrieve_dense, retrieve_graph_neighborhood
+from src.retrieval.dense_retrieval import (
+    build_adj,
+    precompute_similarities,
+    retrieve_dense,
+    retrieve_graph_neighborhood,
+)
 from src.retrieval.pcst_retrieval import retrieve_with_pcst
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -113,7 +124,13 @@ def test_pipeline_smoke():
         OUT / "query_embeddings.pt", embed_queries, queries,
         model_name=cfg["embedding"]["model"], batch_size=cfg["embedding"]["batch_size"],
     )
-    print(f"doc_embs={tuple(doc_embs.shape)} query_embs={tuple(query_embs.shape)}")
+    meta_embs = load_or_compute(
+        OUT / "metadata_embeddings.pt", embed_metadata_records, corpus,
+        fields=cfg["metadata_graph"]["fields"],
+        model_name=cfg["embedding"]["model"], batch_size=cfg["embedding"]["batch_size"],
+    )
+    print(f"doc_embs={tuple(doc_embs.shape)} query_embs={tuple(query_embs.shape)} "
+          f"meta_embs={tuple(meta_embs.shape)}")
 
     # sanity peek: are q0's nearest documents anywhere near its gold documents?
     top = torch.topk(query_embs[0] @ doc_embs.T, 3)
@@ -122,8 +139,11 @@ def test_pipeline_smoke():
 
     assert doc_embs.shape == (n_docs, dim)
     assert query_embs.shape == (len(queries), dim)
+    assert meta_embs.shape == (n_docs, dim)
     assert torch.isfinite(doc_embs).all()
     assert torch.allclose(doc_embs.norm(dim=1), torch.ones(n_docs), atol=1e-3)
+    # the metadata graph's matmul requires this
+    assert torch.allclose(meta_embs.norm(dim=1), torch.ones(n_docs), atol=1e-3)
 
     # =====================================================================
     # 4. BUILD the four graph variants  (scripts/02)
@@ -139,17 +159,16 @@ def test_pipeline_smoke():
         cfg["entity_graph"]["min_shared_entities"],
         mutual_knn_k=shared_knn_k,
     )
-    metadata_builder = MetadataGraphBuilder()
-
-    # Shared mutual_knn_k applies to both; otherwise entity density sets semantic k
+    # Shared mutual_knn_k applies to all three; otherwise entity density sets k
     entity_graph = entity_builder.build(corpus, doc_embs, entities, edge_embedder=embed_fn)
     avg_degree = entity_graph[0].edge_index.shape[1] / n_docs
     k = shared_knn_k or max(1, round(avg_degree))
     if shared_knn_k is not None:
-        print(f"shared mutual_knn_k = {k} (entity + semantic)")
+        print(f"shared mutual_knn_k = {k} (entity + metadata + semantic)")
     else:
-        print(f"entity avg degree {avg_degree:.2f} -> semantic mutual_knn_k = {k}")
+        print(f"entity avg degree {avg_degree:.2f} -> metadata/semantic mutual_knn_k = {k}")
 
+    metadata_builder = MetadataGraphBuilder(record_embeddings=meta_embs, mutual_knn_k=k)
     semantic_builder = SemanticGraphBuilder(mutual_knn_k=k)
     combined_builder = CombinedGraphBuilder(entity_builder, metadata_builder, semantic_builder)
 
@@ -228,16 +247,22 @@ def test_pipeline_smoke():
                   + [(n, n, "pcst") for n in GRAPH_NAMES]
                   + [(n, n, "no_pcst") for n in GRAPH_NAMES])
 
+    # Same precompute-once pattern the scripts/03_* runners use: one (Q, N)
+    # similarity matmul and one adjacency list per graph, not per query.
+    all_sims = precompute_similarities(query_embs, doc_embs)
+    adjs = {n: build_adj(graphs[n][0]) for n in GRAPH_NAMES}
+
     for label, graph_name, mode in conditions:
         results = []
         for i, q in enumerate(queries):
             if graph_name is None:
-                retrieved = retrieve_dense(query_embs[i], doc_embs, k=k_baseline)
+                retrieved = retrieve_dense(all_sims[i], k=k_baseline)
             elif mode == "pcst":
                 retrieved = run_pcst(query_embs[i], graph_name)
             else:
                 retrieved = retrieve_graph_neighborhood(
-                    query_embs[i], doc_embs, graphs[graph_name][0], k=k_baseline, expand_hops=1)
+                    all_sims[i], graphs[graph_name][0], k=k_baseline,
+                    expand_hops=1, adj=adjs[graph_name])
             results.append({
                 "query_id": q["query_id"], "query": q["query"],
                 "question_type": q["question_type"],
