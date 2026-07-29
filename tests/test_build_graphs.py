@@ -8,6 +8,8 @@ metrics. Its job is to produce graphs you can open in Excel and argue about.
     python tests/test_build_graphs.py --config config/test_small.yaml --docs 60
     python -m pytest tests/test_build_graphs.py          # quick structural check
 
+Results are written to tests/results/graph_runs/.
+
 WHY THIS IS AFFORDABLE ON THE FULL CORPUS
 -----------------------------------------
 A graph's structure depends only on the edge RULES. The 1024-dim edge_attr
@@ -63,7 +65,7 @@ from src.graph.entity_graph import EntityGraphBuilder
 from src.graph.metadata_graph import MetadataGraphBuilder
 from src.graph.semantic_graph import SemanticGraphBuilder
 
-OUT_ROOT = ROOT / "data" / "graph_runs"
+OUT_ROOT = Path(__file__).resolve().parent / "results" / "graph_runs"
 
 # What `pytest` runs: small models, small slice, seconds not minutes.
 PYTEST_CONFIG = ROOT / "config" / "test_small.yaml"
@@ -72,7 +74,7 @@ PYTEST_QUERIES = 15
 
 
 def build_graphs(config_path, n_docs=None, n_queries=None, seed=SEED):
-    """Build the four variants and write them to data/graph_runs/<name>/.
+    """Build the four variants and write them to tests/results/graph_runs/<name>/.
 
     Args:
         config_path: which YAML to use. config/base.yaml gives the real graphs.

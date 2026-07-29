@@ -1,5 +1,5 @@
 # Pipeline artifacts (regenerate with scripts/01..04 or the tests).
-# Includes data/graph_runs/, where test_build_graphs.py writes its CSVs -
+# Includes tests/results/graph_runs/, where test_build_graphs.py writes its CSVs -
 # a full-corpus run is ~20 MB, which does not belong in git.
 data/
 results/

@@ -32,7 +32,7 @@ To debug it in VS Code, open the file and press F5. Turn off
 refuses to step into library code and you can't see inside PyG's
 `retrieval_via_pcst` — the actual G-Retriever subgraph selection.
 
-Results go to `data/smoke_run/`. Everything is one function, so a breakpoint
+Results go to `tests/results/smoke_run/`. Everything is one function, so a breakpoint
 anywhere gives you every variable computed so far — `corpus`, `entities`,
 `doc_embs`, `graphs`, `results`. Interesting spots are the section banners:
 `=== 2. preprocess ===` for what spaCy extracted, `=== 6. retrieval ===` to
@@ -126,7 +126,7 @@ from. The test prints which mode it ran in.
 
 ### What it writes
 
-Into `data/graph_runs/<config>_<n>docs/`, all keyed by `doc_id`:
+Into `tests/results/graph_runs/<config>_<n>docs/`, all keyed by `doc_id`:
 
 | file | contents |
 |---|---|
