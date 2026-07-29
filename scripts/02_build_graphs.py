@@ -47,8 +47,10 @@ def main():
     )
 
     # --- Entity graph ---
+    shared_knn_k = cfg.get("mutual_knn_k")
     entity_builder = EntityGraphBuilder(
-        min_shared_entities=cfg["entity_graph"]["min_shared_entities"]
+        min_shared_entities=cfg["entity_graph"]["min_shared_entities"],
+        mutual_knn_k=shared_knn_k,
     )
     entity_data, entity_tn, entity_te = entity_builder.build(
         corpus, embeddings, entities, edge_embedder=embed_fn
@@ -63,15 +65,17 @@ def main():
     )
 
     # --- Semantic graph ---
-    # Compute mutual_knn_k to match entity graph average degree
-    sem_cfg = cfg["semantic_graph"]
-    mutual_k = sem_cfg.get("mutual_knn_k") or _target_knn_k(entity_avg_degree, len(corpus))
-    logger.info("Semantic graph mutual_knn_k set to %d (targeting entity avg degree %.2f)", mutual_k, entity_avg_degree)
+    # Shared mutual_knn_k applies to both; otherwise match entity avg degree
+    mutual_k = shared_knn_k or _target_knn_k(entity_avg_degree, len(corpus))
+    if shared_knn_k is not None:
+        logger.info("Semantic graph mutual_knn_k=%d (shared with entity)", mutual_k)
+    else:
+        logger.info(
+            "Semantic graph mutual_knn_k set to %d (targeting entity avg degree %.2f)",
+            mutual_k, entity_avg_degree,
+        )
 
-    semantic_builder = SemanticGraphBuilder(
-        threshold=sem_cfg["threshold"],
-        mutual_knn_k=mutual_k,
-    )
+    semantic_builder = SemanticGraphBuilder(mutual_knn_k=mutual_k)
     semantic_data, semantic_tn, semantic_te = semantic_builder.build(
         corpus, embeddings, entities, edge_embedder=embed_fn
     )

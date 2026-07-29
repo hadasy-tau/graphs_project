@@ -12,15 +12,16 @@ ner:
   stop_entity_threshold: 0.20   # exclude entities in >20% of docs
   canonicalize_threshold: 0.90  # rapidfuzz ratio for merging near-duplicates
 
+# Shared sparsifier for entity + semantic graphs.
+# null  => entity uses min_shared_entities only; semantic k matches entity avg degree
+# int   => both graphs use this same mutual k-NN k (entity floor becomes min_shared=1)
+mutual_knn_k: null
+
 entity_graph:
   min_shared_entities: 2
 
 metadata_graph:
   date_window_days: 3
-
-semantic_graph:
-  threshold: 0.5
-  mutual_knn_k: null   # set automatically to match entity graph avg degree
 
 pcst:
   topk: 3

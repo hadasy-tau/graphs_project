@@ -52,9 +52,9 @@ def main():
     _write_csv(ablation_rows, METRICS / "pcst_ablation.csv")
     logger.info("PCST ablation table saved")
 
-    # --- Semantic threshold sensitivity ---
-    threshold_rows = _sweep_semantic_threshold(queries, embeddings)
-    _write_csv(threshold_rows, METRICS / "threshold_sensitivity.csv")
+    # --- Semantic mutual k-NN sensitivity ---
+    knn_rows = _sweep_semantic_knn(queries, embeddings)
+    _write_csv(knn_rows, METRICS / "knn_sensitivity.csv")
 
     # --- Entity min-overlap sensitivity ---
     overlap_rows = _sweep_entity_overlap(queries, embeddings)
@@ -66,13 +66,12 @@ def main():
     logger.info("Phase 5 complete.")
 
 
-def _sweep_semantic_threshold(queries, embeddings):
+def _sweep_semantic_knn(queries, embeddings):
     from src.graph.semantic_graph import SemanticGraphBuilder
     from src.data.loader import load_jsonl
     from src.data.embedder import embed_texts
     from src.retrieval.pcst_retrieval import retrieve_with_pcst
     from src.evaluation.metrics import aggregate
-    import pandas as pd
 
     with open(PROCESSED / "entities.json") as f:
         entities = {int(k): set(v) for k, v in json.load(f).items()}
@@ -83,8 +82,8 @@ def _sweep_semantic_threshold(queries, embeddings):
     embed_fn = lambda texts: embed_texts(texts, model_name=cfg["embedding"]["model"], batch_size=256)
 
     rows = []
-    for threshold in [0.60, 0.65, 0.70, 0.75, 0.80, 0.85]:
-        builder = SemanticGraphBuilder(threshold=threshold)
+    for k in [3, 5, 8, 10, 15, 20]:
+        builder = SemanticGraphBuilder(mutual_knn_k=k)
         data, tn, te = builder.build(corpus, embeddings, entities, edge_embedder=embed_fn)
 
         results = []
@@ -100,9 +99,9 @@ def _sweep_semantic_threshold(queries, embeddings):
             })
 
         m = aggregate(results)
-        rows.append({"threshold": threshold, "n_edges": data.edge_index.shape[1] // 2, **m})
-        logger.info("Threshold=%.2f -> F1=%.4f recall=%.4f edges=%d",
-                    threshold, m["f1"], m["evidence_recall"], data.edge_index.shape[1] // 2)
+        rows.append({"mutual_knn_k": k, "n_edges": data.edge_index.shape[1] // 2, **m})
+        logger.info("mutual_knn_k=%d -> F1=%.4f recall=%.4f edges=%d",
+                    k, m["f1"], m["evidence_recall"], data.edge_index.shape[1] // 2)
 
     return rows
 
