@@ -67,9 +67,9 @@ The smoke test is tuned so the flow is **visible**, not so the numbers mean
 anything. Use `test_build_graphs.py` for graphs you intend to reason about.
 
 **Smaller models.** `config/test_small.yaml` uses `all-MiniLM-L6-v2` instead of
-`bge-large-en-v1.5` and `en_core_web_sm` instead of `en_core_web_lg`, and drops
-the semantic threshold from 0.75 to 0.40 because MiniLM's similarity scale is
-much lower. That file explains each choice.
+`bge-large-en-v1.5` and `en_core_web_sm` instead of `en_core_web_lg`. Semantic
+edges are mutual k-NN only (no absolute similarity threshold), so MiniLM's
+lower cosine scale does not empty the graph. That file explains each choice.
 
 **The PCST solver.** `pcst-fast` ships C++ source with no prebuilt wheels, so
 installing it needs a compiler — on Windows, Microsoft C++ Build Tools 14.0+.

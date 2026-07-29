@@ -134,18 +134,23 @@ def test_pipeline_smoke():
         return embed_texts(texts, model_name=cfg["embedding"]["model"],
                            batch_size=cfg["embedding"]["batch_size"])
 
-    entity_builder = EntityGraphBuilder(cfg["entity_graph"]["min_shared_entities"])
+    shared_knn_k = cfg.get("mutual_knn_k")
+    entity_builder = EntityGraphBuilder(
+        cfg["entity_graph"]["min_shared_entities"],
+        mutual_knn_k=shared_knn_k,
+    )
     metadata_builder = MetadataGraphBuilder()
 
-    # The entity graph is built first because its density sets the semantic
-    # graph's k - otherwise the two would differ in edge count as well as in
-    # edge meaning, and you could not tell which caused a difference.
+    # Shared mutual_knn_k applies to both; otherwise entity density sets semantic k
     entity_graph = entity_builder.build(corpus, doc_embs, entities, edge_embedder=embed_fn)
     avg_degree = entity_graph[0].edge_index.shape[1] / n_docs
-    k = cfg["semantic_graph"]["mutual_knn_k"] or max(1, round(avg_degree))
-    print(f"entity avg degree {avg_degree:.2f} -> semantic mutual_knn_k = {k}")
+    k = shared_knn_k or max(1, round(avg_degree))
+    if shared_knn_k is not None:
+        print(f"shared mutual_knn_k = {k} (entity + semantic)")
+    else:
+        print(f"entity avg degree {avg_degree:.2f} -> semantic mutual_knn_k = {k}")
 
-    semantic_builder = SemanticGraphBuilder(cfg["semantic_graph"]["threshold"], mutual_knn_k=k)
+    semantic_builder = SemanticGraphBuilder(mutual_knn_k=k)
     combined_builder = CombinedGraphBuilder(entity_builder, metadata_builder, semantic_builder)
 
     graphs = {

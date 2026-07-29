@@ -122,17 +122,23 @@ def build_graphs(config_path, n_docs=None, n_queries=None, seed=SEED):
           f"{sum(len(e) for e in entities.values())} entity mentions")
 
     # --- edges only: get_edges(), never build(), so no edge embedding ---
-    entity_builder = EntityGraphBuilder(cfg["entity_graph"]["min_shared_entities"])
+    shared_knn_k = cfg.get("mutual_knn_k")
+    entity_builder = EntityGraphBuilder(
+        cfg["entity_graph"]["min_shared_entities"],
+        mutual_knn_k=shared_knn_k,
+    )
     metadata_builder = MetadataGraphBuilder(cfg["metadata_graph"]["date_window_days"])
 
-    # The entity graph goes first because its density sets the semantic graph's
-    # k, keeping the two comparable in edge count so only edge MEANING differs.
+    # Shared mutual_knn_k applies to both; otherwise entity density sets semantic k
     entity_edges = entity_builder.get_edges(corpus, doc_embs, entities)
     avg_degree = 2 * len(entity_edges) / len(corpus)
-    k = cfg["semantic_graph"]["mutual_knn_k"] or max(1, round(avg_degree))
-    print(f"entity avg degree {avg_degree:.2f} -> semantic mutual_knn_k = {k}")
+    k = shared_knn_k or max(1, round(avg_degree))
+    if shared_knn_k is not None:
+        print(f"shared mutual_knn_k = {k} (entity + semantic)")
+    else:
+        print(f"entity avg degree {avg_degree:.2f} -> semantic mutual_knn_k = {k}")
 
-    semantic_builder = SemanticGraphBuilder(cfg["semantic_graph"]["threshold"], mutual_knn_k=k)
+    semantic_builder = SemanticGraphBuilder(mutual_knn_k=k)
     combined_builder = CombinedGraphBuilder(entity_builder, metadata_builder, semantic_builder)
 
     graphs = {
