@@ -134,7 +134,7 @@ Into `tests/results/graph_runs/<config>_<n>docs/`, all keyed by `doc_id`:
 | `queries.csv` | the questions, with gold doc ids **and gold titles** spelled out |
 | `graphs/<name>_edges.csv` | every edge and *why* it exists (the edge text) |
 | `graphs/<name>_adjacency.csv` | the graph as a `doc_id × doc_id` 0/1 matrix |
-| `graph_stats.csv` | nodes, edges, avg degree, components, oracle connectivity |
+| `graph_stats.csv` | nodes, edges, degree distribution, density, components, oracle connectivity |
 | `gold_connectivity.csv` | **can this graph reach each query's evidence?** |
 
 All four adjacency matrices use the same node order, so subtracting two of them
