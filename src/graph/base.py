@@ -103,6 +103,8 @@ class GraphBuilder(ABC):
         name: str = "graph",
     ) -> dict:
         """Compute and log key graph statistics including oracle connectivity."""
+        import statistics
+
         import networkx as nx
 
         n = data.num_nodes
@@ -124,6 +126,21 @@ class GraphBuilder(ABC):
         n_components = nx.number_connected_components(g)
         largest_cc = max(len(c) for c in nx.connected_components(g)) if n > 0 else 0
 
+        # Degree distribution: avg_degree alone hides skew (e.g. a few hub
+        # nodes dominating while most nodes stay sparse, or nodes with no
+        # edges at all that PCST can never reach through graph structure).
+        degrees = [d for _, d in g.degree()]
+        min_degree = min(degrees) if degrees else 0
+        max_degree = max(degrees) if degrees else 0
+        median_degree = statistics.median(degrees) if degrees else 0
+        n_isolated = sum(1 for d in degrees if d == 0)
+
+        # Density: edge count normalized by the maximum possible (n choose 2),
+        # so graphs of different sizes (e.g. full corpus vs. a --docs subset)
+        # can be compared on "how connected" rather than raw edge counts.
+        max_possible_edges = n * (n - 1) / 2
+        density = e / max_possible_edges if max_possible_edges > 0 else 0.0
+
         # Oracle connectivity: fraction of gold doc pairs directly connected
         connected_pairs = 0
         total_pairs = 0
@@ -142,6 +159,11 @@ class GraphBuilder(ABC):
             "n_nodes": n,
             "n_edges": e,
             "avg_degree": round(avg_degree, 3),
+            "min_degree": min_degree,
+            "max_degree": max_degree,
+            "median_degree": median_degree,
+            "n_isolated": n_isolated,
+            "density": round(density, 6),
             "n_components": n_components,
             "largest_cc": largest_cc,
             "oracle_connectivity": round(oracle_conn, 4),
@@ -149,7 +171,9 @@ class GraphBuilder(ABC):
 
         import logging
         logging.getLogger(__name__).info(
-            "[%s] nodes=%d edges=%d avg_deg=%.2f components=%d oracle_conn=%.3f",
-            name, n, e, avg_degree, n_components, oracle_conn,
+            "[%s] nodes=%d edges=%d avg_deg=%.2f (min=%d median=%.1f max=%d) "
+            "isolated=%d density=%.5f components=%d oracle_conn=%.3f",
+            name, n, e, avg_degree, min_degree, median_degree, max_degree,
+            n_isolated, density, n_components, oracle_conn,
         )
         return stats
