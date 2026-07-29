@@ -34,9 +34,6 @@ mutual_knn_k: null
 entity_graph:
   min_shared_entities: 1
 
-metadata_graph:
-  date_window_days: 3
-
 pcst:
   topk: 3
   topk_e: 5

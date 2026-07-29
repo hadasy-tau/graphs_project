@@ -129,7 +129,7 @@ def build_graphs(config_path, n_docs=None, n_queries=None, seed=SEED):
         cfg["entity_graph"]["min_shared_entities"],
         mutual_knn_k=shared_knn_k,
     )
-    metadata_builder = MetadataGraphBuilder(cfg["metadata_graph"]["date_window_days"])
+    metadata_builder = MetadataGraphBuilder()
 
     # Shared mutual_knn_k applies to both; otherwise entity density sets semantic k
     entity_edges = entity_builder.get_edges(corpus, doc_embs, entities)

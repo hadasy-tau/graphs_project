@@ -43,7 +43,7 @@ def main():
     embed_fn = lambda texts: embed_texts(
         texts,
         model_name=cfg["embedding"]["model"],
-        batch_size=256,
+        batch_size=cfg["embedding"]["batch_size"],
     )
 
     # --- Entity graph ---
