@@ -1,0 +1,5 @@
+name,n_nodes,n_edges,avg_degree,min_degree,max_degree,median_degree,n_isolated,density,n_components,largest_cc,oracle_connectivity
+entity,609,5060,16.617,0,89,12,53,0.027331,59,545,0.7154
+metadata,609,2525,8.292,0,17,8,33,0.013639,41,551,0.4491
+semantic,609,3105,10.197,0,17,11,1,0.016771,2,608,0.5297
+combined,609,7501,24.634,2,92,21,0,0.040516,1,609,0.8185
