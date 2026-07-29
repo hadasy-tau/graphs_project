@@ -3,7 +3,6 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from tqdm import tqdm
 from _retrieval_common import (
     PROCESSED, RETRIEVAL, logger,
     load_embeddings, calibrate_k, make_result, spot_check, check_degenerate,
@@ -12,7 +11,7 @@ from _retrieval_common import (
 
 def main():
     from src.data.loader import load_jsonl, save_jsonl
-    from src.retrieval.dense_retrieval import retrieve_dense
+    from src.retrieval.dense_retrieval import precompute_similarities, retrieve_dense
 
     out_path = RETRIEVAL / "dense_no_pcst.jsonl"
     if out_path.exists():
@@ -23,11 +22,14 @@ def main():
     doc_embs, query_embs = load_embeddings()
 
     k_baseline = calibrate_k(queries, query_embs)
-    logger.info("Baseline K calibrated to %d", k_baseline)
+    logger.info("Baseline K = %d", k_baseline)
+
+    logger.info("Precomputing similarity matrix (%d queries x %d docs)...", query_embs.shape[0], doc_embs.shape[0])
+    all_sims = precompute_similarities(query_embs, doc_embs)
 
     results = []
-    for i, q in enumerate(tqdm(queries, desc="dense/no_pcst")):
-        retrieved = retrieve_dense(query_embs[i], doc_embs, k=k_baseline)
+    for i, q in enumerate(queries):
+        retrieved = retrieve_dense(all_sims[i], k=k_baseline)
         results.append(make_result(q, retrieved))
         if i < 3:
             spot_check(q, retrieved)

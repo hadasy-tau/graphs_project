@@ -1,5 +1,7 @@
 """Shared helpers for 03_* retrieval scripts."""
+import json
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -16,6 +18,8 @@ PROCESSED = ROOT / "data" / "processed"
 GRAPHS = ROOT / "data" / "graphs"
 RETRIEVAL = ROOT / "results" / "retrieval"
 RETRIEVAL.mkdir(parents=True, exist_ok=True)
+
+_K_BASELINE_CACHE = PROCESSED / "k_baseline.json"
 
 with open(ROOT / "config" / "base.yaml") as f:
     cfg = yaml.safe_load(f)
@@ -36,12 +40,21 @@ def load_embeddings():
 
 
 def calibrate_k(queries, query_embs) -> int:
-    """Run PCST on entity graph for first 50 queries; return rounded average output size."""
+    """PCST on entity graph for 50 queries; return rounded average output size.
+
+    Result is cached to data/processed/k_baseline.json so multiple no_pcst
+    scripts don't each repeat the 50-query entity-PCST calibration run.
+    """
+    if _K_BASELINE_CACHE.exists():
+        k = json.loads(_K_BASELINE_CACHE.read_text())["k_baseline"]
+        logger.info("Loaded cached k_baseline=%d from %s", k, _K_BASELINE_CACHE.name)
+        return k
+
     from src.retrieval.pcst_retrieval import retrieve_with_pcst
     pcst_cfg = cfg["pcst"]
     data, tn, te = load_graph("entity")
-    sizes = []
     n_sample = min(50, len(queries))
+    sizes = []
     for i in range(n_sample):
         retrieved = retrieve_with_pcst(
             query_embs[i], data, tn, te,
@@ -50,39 +63,25 @@ def calibrate_k(queries, query_embs) -> int:
             cost_e=pcst_cfg["cost_e"],
         )
         sizes.append(len(retrieved))
-    return max(1, round(sum(sizes) / len(sizes)))
+    k = max(1, round(sum(sizes) / len(sizes)))
+
+    _K_BASELINE_CACHE.write_text(json.dumps({"k_baseline": k}))
+    logger.info("k_baseline=%d written to %s", k, _K_BASELINE_CACHE.name)
+    return k
 
 
-def calibrate_seed_k(query_embs, doc_embs, graph_data, target_size: int, n_sample: int = 50) -> int:
-    """Binary-search seed K so that post-expansion size (seeds + 1-hop) matches target_size."""
-    from src.retrieval.dense_retrieval import retrieve_graph_neighborhood
-    n_sample = min(n_sample, query_embs.shape[0])
-    n_docs = doc_embs.shape[0]
+def compute_seed_k(graph_data, k_baseline: int) -> int:
+    """Estimate seed K from median node degree.
 
-    def avg_final_size(seed_k: int) -> float:
-        sizes = []
-        for i in range(n_sample):
-            retrieved = retrieve_graph_neighborhood(
-                query_embs[i], doc_embs, graph_data, k=seed_k, expand_hops=1
-            )
-            sizes.append(len(retrieved))
-        return sum(sizes) / len(sizes)
-
-    lo, hi = 1, n_docs
-    best_k, best_diff = lo, float("inf")
-    while lo <= hi:
-        mid = (lo + hi) // 2
-        size = avg_final_size(mid)
-        diff = abs(size - target_size)
-        if diff < best_diff:
-            best_k, best_diff = mid, diff
-        if size < target_size:
-            lo = mid + 1
-        elif size > target_size:
-            hi = mid - 1
-        else:
-            break
-    return max(1, best_k)
+    After 1-hop expansion the expected final size is seed_k * (1 + median_deg).
+    Solving for seed_k that hits k_baseline is O(E) — no sampling needed.
+    """
+    n = graph_data.num_nodes or 0
+    if n == 0 or graph_data.edge_index.numel() == 0:
+        return k_baseline
+    degrees = torch.bincount(graph_data.edge_index[0], minlength=n).float()
+    median_deg = float(degrees.median().item())
+    return max(1, round(k_baseline / (1.0 + median_deg)))
 
 
 def make_result(q: dict, retrieved: list[int]) -> dict:
@@ -114,3 +113,64 @@ def check_degenerate(results: list[dict], label: str, mode: str) -> None:
         )
     else:
         logger.info("[%s/%s] degenerate rate: %.1f%%", label, mode, frac * 100)
+
+
+# ---------------------------------------------------------------------------
+# PCST parallel helpers
+# ---------------------------------------------------------------------------
+# Module-level globals set in each worker process by _pcst_init.
+_worker_graph_data = None
+_worker_tn = None
+_worker_te = None
+_worker_pcst_cfg = None
+
+
+def _pcst_init(root_str: str, graph_data, tn, te, pcst_cfg: dict) -> None:
+    """Worker initializer: receives shared graph state once per process."""
+    global _worker_graph_data, _worker_tn, _worker_te, _worker_pcst_cfg
+    if root_str not in sys.path:
+        sys.path.insert(0, root_str)
+    _worker_graph_data = graph_data
+    _worker_tn = tn
+    _worker_te = te
+    _worker_pcst_cfg = pcst_cfg
+
+
+def _pcst_call(q_emb: torch.Tensor) -> list[int]:
+    from src.retrieval.pcst_retrieval import retrieve_with_pcst
+    return retrieve_with_pcst(
+        q_emb, _worker_graph_data, _worker_tn, _worker_te,
+        topk=_worker_pcst_cfg["topk"],
+        topk_e=_worker_pcst_cfg["topk_e"],
+        cost_e=_worker_pcst_cfg["cost_e"],
+    )
+
+
+def run_pcst_parallel(
+    query_embs_list: list,
+    graph_data,
+    tn,
+    te,
+    pcst_cfg: dict,
+    desc: str = "pcst",
+) -> list[list[int]]:
+    """Run PCST for all queries in parallel across CPU cores.
+
+    Uses spawn context so that CUDA/PyTorch state in the parent process does
+    not corrupt forked workers. Graph data is sent once per worker at init.
+    """
+    from concurrent.futures import ProcessPoolExecutor
+    import multiprocessing as mp
+    from tqdm import tqdm
+
+    n_workers = max(1, (os.cpu_count() or 2) - 1)
+    logger.info("Running PCST on %d workers for %d queries", n_workers, len(query_embs_list))
+    ctx = mp.get_context("spawn")
+    with ProcessPoolExecutor(
+        max_workers=n_workers,
+        mp_context=ctx,
+        initializer=_pcst_init,
+        initargs=(str(ROOT), graph_data, tn, te, pcst_cfg),
+    ) as pool:
+        results = list(tqdm(pool.map(_pcst_call, query_embs_list), total=len(query_embs_list), desc=desc))
+    return results

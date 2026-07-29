@@ -3,10 +3,10 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from tqdm import tqdm
 from _retrieval_common import (
     PROCESSED, RETRIEVAL, cfg, logger,
     load_graph, load_embeddings, make_result, spot_check, check_degenerate,
+    run_pcst_parallel,
 )
 
 GRAPH_NAME = "metadata"
@@ -14,7 +14,6 @@ GRAPH_NAME = "metadata"
 
 def main():
     from src.data.loader import load_jsonl, save_jsonl
-    from src.retrieval.pcst_retrieval import retrieve_with_pcst
 
     out_path = RETRIEVAL / f"{GRAPH_NAME}_pcst.jsonl"
     if out_path.exists():
@@ -23,17 +22,16 @@ def main():
 
     queries = load_jsonl(PROCESSED / "queries.jsonl")
     _, query_embs = load_embeddings()
-    pcst_cfg = cfg["pcst"]
     data, tn, te = load_graph(GRAPH_NAME)
 
+    all_retrieved = run_pcst_parallel(
+        [query_embs[i] for i in range(len(queries))],
+        data, tn, te, cfg["pcst"],
+        desc=f"{GRAPH_NAME}/pcst",
+    )
+
     results = []
-    for i, q in enumerate(tqdm(queries, desc=f"{GRAPH_NAME}/pcst")):
-        retrieved = retrieve_with_pcst(
-            query_embs[i], data, tn, te,
-            topk=pcst_cfg["topk"],
-            topk_e=pcst_cfg["topk_e"],
-            cost_e=pcst_cfg["cost_e"],
-        )
+    for i, (q, retrieved) in enumerate(zip(queries, all_retrieved)):
         results.append(make_result(q, retrieved))
         if i < 3:
             spot_check(q, retrieved)
