@@ -20,15 +20,16 @@ it. What is left - document embeddings and NER - is minutes, and it is cached.
 
 WHAT --docs COSTS YOU
 ---------------------
-Only the metadata graph survives subsetting intact. Take a subset and:
+No graph survives subsetting intact. Take a subset and:
 
-  metadata   EXACT. The rules are pairwise and absolute, so a subset gives
-             precisely the induced subgraph of the full one.
   entity     APPROXIMATE. stop_entity_threshold is a FRACTION of the corpus,
              so on 100 docs it drops entities appearing in >20 of them, while
              on 609 it drops entities appearing in >122. Different entities
              survive, so different edges. Canonicalization also clusters over
              whichever entity vocabulary happens to be present.
+  metadata   APPROXIMATE. Record similarities are absolute and do not move, but
+             mutual k-NN is global, and k is derived from the entity graph's
+             density. Same caveat as semantic, below.
   semantic   APPROXIMATE. Pair similarities are absolute and do not move, but
              mutual k-NN is global: your top-6 neighbours among 100 documents
              are not your top-6 among 609. Also k itself is derived from the
@@ -57,7 +58,7 @@ import yaml
 from torch_geometric.data import Data
 
 from common import SEED, setup_logging, subset_corpus
-from src.data.embedder import embed_documents, load_or_compute
+from src.data.embedder import embed_documents, embed_metadata_records, load_or_compute
 from src.data.loader import load_multihop_rag
 from src.data.preprocessor import clean_text, extract_entities
 from src.graph.combined_graph import CombinedGraphBuilder
@@ -107,9 +108,9 @@ def build_graphs(config_path, n_docs=None, n_queries=None, seed=SEED):
         print("\nFULL CORPUS - these are exactly the graphs config/base.yaml produces\n"
               "(assuming this config IS base.yaml; the models above are what matters).")
     else:
-        print(f"\nSUBSET of {len(corpus)}/{full_corpus_size} docs. The metadata graph is exact;\n"
-              "entity and semantic (and so combined) are APPROXIMATE - see the module\n"
-              "docstring. Do not compare these against a full-corpus run.")
+        print(f"\nSUBSET of {len(corpus)}/{full_corpus_size} docs. All four graphs are\n"
+              "APPROXIMATE - see the module docstring. Do not compare these against a\n"
+              "full-corpus run.")
 
     # --- documents: clean, NER, embed (cached, the slow part) ---
     for doc in corpus:
@@ -120,7 +121,14 @@ def build_graphs(config_path, n_docs=None, n_queries=None, seed=SEED):
         out / "embeddings.pt", embed_documents, corpus,
         model_name=cfg["embedding"]["model"], batch_size=cfg["embedding"]["batch_size"],
     )
+    meta_embs = load_or_compute(
+        out / "metadata_embeddings.pt", embed_metadata_records, corpus,
+        fields=cfg["metadata_graph"]["fields"],
+        model_name=cfg["embedding"]["model"], batch_size=cfg["embedding"]["batch_size"],
+    )
     print(f"\nembeddings {tuple(doc_embs.shape)}, "
+          f"metadata records {tuple(meta_embs.shape)} from "
+          f"{cfg['metadata_graph']['fields']}, "
           f"{sum(len(e) for e in entities.values())} entity mentions")
 
     # --- edges only: get_edges(), never build(), so no edge embedding ---
@@ -129,17 +137,17 @@ def build_graphs(config_path, n_docs=None, n_queries=None, seed=SEED):
         cfg["entity_graph"]["min_shared_entities"],
         mutual_knn_k=shared_knn_k,
     )
-    metadata_builder = MetadataGraphBuilder()
 
-    # Shared mutual_knn_k applies to both; otherwise entity density sets semantic k
+    # Shared mutual_knn_k applies to all three; otherwise entity density sets k
     entity_edges = entity_builder.get_edges(corpus, doc_embs, entities)
     avg_degree = 2 * len(entity_edges) / len(corpus)
     k = shared_knn_k or max(1, round(avg_degree))
     if shared_knn_k is not None:
-        print(f"shared mutual_knn_k = {k} (entity + semantic)")
+        print(f"shared mutual_knn_k = {k} (entity + metadata + semantic)")
     else:
-        print(f"entity avg degree {avg_degree:.2f} -> semantic mutual_knn_k = {k}")
+        print(f"entity avg degree {avg_degree:.2f} -> metadata/semantic mutual_knn_k = {k}")
 
+    metadata_builder = MetadataGraphBuilder(record_embeddings=meta_embs, mutual_knn_k=k)
     semantic_builder = SemanticGraphBuilder(mutual_knn_k=k)
     combined_builder = CombinedGraphBuilder(entity_builder, metadata_builder, semantic_builder)
 

@@ -71,6 +71,55 @@ def embed_documents(
     return embed_texts(texts, model_name=model_name, batch_size=batch_size, device=device)
 
 
+METADATA_LABELS = {
+    "title": "Title",
+    "category": "Category",
+    "source": "Source",
+    "author": "Author",
+    "published_at": "Published",
+}
+
+DEFAULT_METADATA_FIELDS = ["title", "author"]
+
+
+def format_metadata_record(doc: dict, fields: list[str]) -> str:
+    """Render a document's metadata as a labelled record, e.g.
+
+        "Title: Amazon sellers sound off. Author: Sarah Perez."
+
+    The labels are load-bearing: they tell the encoder what role each value
+    plays. Dropping them and embedding bare values measurably degrades the
+    resulting graph, because 'Mashable', a byline and a date become three
+    unmoored tokens.
+
+    Fields with an empty value are skipped rather than emitted as an empty
+    label - 11% of the corpus has no author, and "Author: ." on all of them
+    would make those documents mutually similar on that fragment alone.
+    """
+    parts = []
+    for field in fields:
+        value = str(doc.get(field) or "").strip()
+        if not value:
+            continue
+        if field == "published_at":
+            value = value[:10]  # date only; the time of day is noise
+        parts.append(f"{METADATA_LABELS.get(field, field.title())}: {value}")
+    return ". ".join(parts) + "." if parts else ""
+
+
+def embed_metadata_records(
+    docs: list[dict],
+    fields: list[str] | None = None,
+    model_name: str = DEFAULT_MODEL,
+    batch_size: int = 64,
+    device: str | None = None,
+) -> torch.Tensor:
+    """Embed each document's metadata record. See format_metadata_record."""
+    fields = fields or DEFAULT_METADATA_FIELDS
+    texts = [format_metadata_record(doc, fields) for doc in docs]
+    return embed_texts(texts, model_name=model_name, batch_size=batch_size, device=device)
+
+
 def embed_queries(
     queries: list[dict],
     model_name: str = DEFAULT_MODEL,

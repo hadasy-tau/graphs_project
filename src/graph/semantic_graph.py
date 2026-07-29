@@ -8,7 +8,7 @@ import torch
 import yaml
 
 from src.graph.base import GraphBuilder
-from src.graph.mutual_knn import mutual_knn_mask
+from src.graph.mutual_knn import cosine_mutual_knn_mask
 
 logger = logging.getLogger(__name__)
 
@@ -48,15 +48,7 @@ class SemanticGraphBuilder(GraphBuilder):
         embeddings: torch.Tensor,
         entities: dict[int, set[str]],
     ) -> list[tuple[int, int, str]]:
-        # For unit-length vectors cosine similarity is the dot product, so the
-        # whole N x N matrix is a single matmul.
-        if (embeddings.norm(dim=1) - 1).abs().max() > 1e-3:
-            raise ValueError("SemanticGraphBuilder needs unit-normalized embeddings")
-        sim = embeddings @ embeddings.T  # (N, N)
-
-        sim.fill_diagonal_(0.0)
-
-        mutual_mask = mutual_knn_mask(sim, self.mutual_knn_k)
+        mutual_mask = cosine_mutual_knn_mask(embeddings, self.mutual_knn_k)
 
         edges = []
         rows, cols = torch.nonzero(mutual_mask, as_tuple=True)

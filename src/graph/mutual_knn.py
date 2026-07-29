@@ -48,3 +48,18 @@ def mutual_knn_mask(sim: torch.Tensor, k: int) -> torch.Tensor:
     _, topk_idx = torch.topk(sim, k, dim=1)
     topk_mask.scatter_(1, topk_idx, True)
     return topk_mask & topk_mask.t()
+
+
+def cosine_mutual_knn_mask(embeddings: torch.Tensor, k: int) -> torch.Tensor:
+    """Mutual top-K mask by cosine similarity over unit-normalized embeddings.
+
+    For unit-length vectors cosine similarity is the dot product, so the whole
+    N x N matrix is a single matmul. Used by any graph whose edges come from
+    embedding similarity, whatever text those embeddings were built from
+    (document body, metadata record, ...).
+    """
+    if (embeddings.norm(dim=1) - 1).abs().max() > 1e-3:
+        raise ValueError("cosine_mutual_knn_mask needs unit-normalized embeddings")
+    sim = embeddings @ embeddings.T  # (N, N)
+    sim.fill_diagonal_(0.0)  # no self-loops
+    return mutual_knn_mask(sim, k)
