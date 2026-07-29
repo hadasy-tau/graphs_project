@@ -47,16 +47,18 @@ def main():
     k_baseline = _calibrate_k(queries, query_embs, graphs["entity"], pcst_cfg)
     logger.info("Baseline K calibrated to %d (matches entity-PCST avg output size)", k_baseline)
 
-    # --- Calibrate seed K per graph so that the POST-EXPANSION size (seeds +
-    # 1-hop neighbors) matches k_baseline, instead of using k_baseline as the
-    # seed count itself (which would always over-shoot after expansion). ---
+    # --- Seed K from median degree: after 1-hop expansion, expected size is
+    # roughly seed_k * (1 + median_degree). Solve for seed_k so that matches
+    # k_baseline (entity-PCST avg size). ---
     seed_k_by_graph = {}
     for name in graph_names:
         data, _, _ = graphs[name]
-        seed_k_by_graph[name] = _calibrate_seed_k(query_embs, doc_embs, data, target_size=k_baseline)
+        median_deg = _median_degree(data)
+        seed_k = max(1, round(k_baseline / (1.0 + median_deg)))
+        seed_k_by_graph[name] = seed_k
         logger.info(
-            "Seed K for %s calibrated to %d (target final size ~%d after 1-hop expansion)",
-            name, seed_k_by_graph[name], k_baseline,
+            "Seed K for %s = %d (median deg=%.1f, target final size ~%d)",
+            name, seed_k, median_deg, k_baseline,
         )
 
     # --- Define all conditions ---
@@ -132,42 +134,13 @@ def _calibrate_k(queries, query_embs, entity_graph_tuple, pcst_cfg) -> int:
     return k
 
 
-def _calibrate_seed_k(query_embs, doc_embs, graph_data, target_size: int, n_sample: int = 50) -> int:
-    """Binary-search the seed K for retrieve_graph_neighborhood so that the average
-    POST-EXPANSION size (seeds + 1-hop neighbors) matches target_size, rather than
-    using target_size as the seed count itself (which always over-shoots after
-    expansion, and by a different amount per graph depending on its density).
-    """
-    from src.retrieval.dense_retrieval import retrieve_graph_neighborhood
-
-    n_sample = min(n_sample, query_embs.shape[0])
-    n_docs = doc_embs.shape[0]
-
-    def avg_final_size(seed_k: int) -> float:
-        sizes = []
-        for i in range(n_sample):
-            retrieved = retrieve_graph_neighborhood(
-                query_embs[i], doc_embs, graph_data, k=seed_k, expand_hops=1
-            )
-            sizes.append(len(retrieved))
-        return sum(sizes) / len(sizes)
-
-    lo, hi = 1, n_docs
-    best_k, best_diff = lo, float("inf")
-    while lo <= hi:
-        mid = (lo + hi) // 2
-        size = avg_final_size(mid)
-        diff = abs(size - target_size)
-        if diff < best_diff:
-            best_k, best_diff = mid, diff
-        if size < target_size:
-            lo = mid + 1
-        elif size > target_size:
-            hi = mid - 1
-        else:
-            break
-
-    return max(1, best_k)
+def _median_degree(graph_data) -> float:
+    """Median node degree (undirected; edge_index stores both directions)."""
+    n = graph_data.num_nodes or 0
+    if n == 0 or graph_data.edge_index.numel() == 0:
+        return 0.0
+    degrees = torch.bincount(graph_data.edge_index[0], minlength=n).float()
+    return float(degrees.median().item())
 
 
 def _spot_check(q: dict, retrieved: list[int]) -> None:
