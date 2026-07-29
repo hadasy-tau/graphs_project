@@ -7,7 +7,7 @@ computed so far is sitting right there in the local scope.
     python tests/test_pipeline_smoke.py       # plain run (or F5 in VS Code)
     python -m pytest tests/test_pipeline_smoke.py -s
 
-Results are written to data/smoke_run/. Document embeddings are cached there,
+Results are written to tests/results/smoke_run/. Document embeddings are cached there,
 so only the first run pays for them; delete the folder to start clean.
 
 Two things are scaled down so this finishes in under a minute on a laptop:
@@ -42,7 +42,7 @@ from src.retrieval.dense_retrieval import retrieve_dense, retrieve_graph_neighbo
 from src.retrieval.pcst_retrieval import retrieve_with_pcst
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
-OUT = ROOT / "data" / "smoke_run"
+OUT = Path(__file__).resolve().parent / "results" / "smoke_run"
 GRAPH_NAMES = ["entity", "metadata", "semantic", "combined"]
 
 
