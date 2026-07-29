@@ -79,7 +79,9 @@ def _sweep_semantic_knn(queries, embeddings):
     query_embs = torch.load(PROCESSED / "query_embeddings.pt", weights_only=True)
 
     pcst_cfg = cfg["pcst"]
-    embed_fn = lambda texts: embed_texts(texts, model_name=cfg["embedding"]["model"], batch_size=256)
+    embed_fn = lambda texts: embed_texts(
+        texts, model_name=cfg["embedding"]["model"], batch_size=cfg["embedding"]["batch_size"]
+    )
 
     rows = []
     for k in [3, 5, 8, 10, 15, 20]:
@@ -119,7 +121,9 @@ def _sweep_entity_overlap(queries, embeddings):
     query_embs = torch.load(PROCESSED / "query_embeddings.pt", weights_only=True)
 
     pcst_cfg = cfg["pcst"]
-    embed_fn = lambda texts: embed_texts(texts, model_name=cfg["embedding"]["model"], batch_size=256)
+    embed_fn = lambda texts: embed_texts(
+        texts, model_name=cfg["embedding"]["model"], batch_size=cfg["embedding"]["batch_size"]
+    )
 
     rows = []
     for min_shared in [1, 2, 3]:
