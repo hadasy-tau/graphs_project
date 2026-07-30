@@ -53,7 +53,7 @@ def _normalize_title(title: str) -> str:
 def _build_corpus(dataset) -> list[dict]:
     """Extract article records from the Hugging Face dataset split."""
     rows = []
-    
+
     feature_names = set(dataset.features.keys())
     body_field = _pick_field(feature_names, ["body", "content", "text", "article"])
     title_field = _pick_field(feature_names, ["title", "headline"])

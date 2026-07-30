@@ -11,12 +11,9 @@ from src.evaluation.metrics import aggregate, aggregate_by_qtype
 
 logger = logging.getLogger(__name__)
 
-# The nine retrieval conditions produced by the scripts/03_* stage. Phase 3 is
-# split across several scripts, so a partial run is easy to miss. evaluate_all
-# refuses to build a summary table unless all of them are present, and evaluates
-# only these conditions - any other .jsonl in the directory is ignored with a
-# warning, so stale files from earlier experiments cannot leak into the summary.
-# Adding a new condition (e.g. a random-graph baseline) means adding it here.
+# The nine retrieval conditions produced by scripts/03_*. evaluate_all refuses to
+# build a summary unless all are present, and ignores any other .jsonl file, so
+# a partial run or a stale file from an earlier experiment can't leak in silently.
 EXPECTED_CONDITIONS = {
     "entity_pcst",
     "entity_no_pcst",
@@ -57,19 +54,6 @@ def split_evaluable_results(results: list[dict]) -> tuple[list[dict], dict]:
         ),
     }
     return evaluable, diagnostics
-
-
-def evaluate_condition(results_path: str | Path) -> dict:
-    """Evaluate a single retrieval condition file, excluding empty-gold queries."""
-    results_path = Path(results_path)
-    condition = results_path.stem
-
-    results = load_jsonl(results_path)
-    evaluable, diag = split_evaluable_results(results)
-    _log_diagnostics(condition, diag)
-    _require_evaluable(condition, evaluable, diag)
-
-    return _build_row(condition, evaluable, diag)
 
 
 def evaluate_all(results_dir: str | Path, output_dir: str | Path) -> None:

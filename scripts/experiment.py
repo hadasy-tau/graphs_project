@@ -1,54 +1,24 @@
-"""One experiment = one config + one results folder. Also the sweep runner.
+"""Resolves per-experiment config/output paths for the stage scripts, and runs sweeps of experiments when invoked directly.
 
-Two roles, deliberately in one module:
+Args (CLI, when run as a script):
+  --sweep-json, --sweep-mode, --include-baseline, --experiments-json
+                    define a sweep of config overrides (see --help for formats)
+  --id, --set       run a single experiment with the given overrides
+  --id-prefix       prefix for auto-generated experiment ids
+  --base-config     YAML to start from (default config/base.yaml)
+  --stages          which of 01-05 to run (default 01,02,03,04)
+  --force           delete results/<id>/ first, so every stage reruns
+  --force-graphs    delete this config's graph dir first, so stage 2 rebuilds
+  --prune-graphs    delete the graph dir once every stage succeeded
+  --stop-on-error   abandon the sweep on the first failing experiment
+  --allow-new-keys  allow overrides to create keys absent from the base config
+  --dry-run         print the experiments, their ids and resolved dirs; write nothing
 
-*Imported* by the stage scripts, it resolves the active config and every output
-path from the environment - so `results/<experiment_id>/` replaces the hardcoded
-`results/metrics` and `results/retrieval` the stages used to write to.
-
-*Run* as a script, it expands a sweep of config values into experiments, and
-drives the stages for each one:
-
-    python scripts/experiment.py --sweep-json '{"mutual_knn_k": [4, 10, 20]}'
-    python scripts/experiment.py --id knn10 --set mutual_knn_k=10
-    python scripts/experiment.py --id 00_prepare --stages 01
-
-Everything an experiment produces lands under results/<id>/:
-
-    config.yaml    the merged config the stages actually read - not a copy of
-                   base.yaml, the file the run consumed
-    manifest.json  git SHA, overrides, resolved dirs, per-stage status/duration
-    logs/          run.log plus one file per stage: logging, print(), tqdm,
-                   tracebacks - exactly what the stage emitted
-    retrieval/     *.jsonl from stage 3
-    metrics/       *.csv from stages 2, 4 and 5
-
-Why the environment rather than a --config flag on each stage: the stages read
-the config and build their output paths at IMPORT time; the nine 03_*.py
-scripts bind those constants from _retrieval_common at import, so an env-based
-fix leaves all nine untouched; and src/graph/semantic_graph.py reads the config
-itself, where no flag can reach. Env also inherits through subprocess for free.
-
-Environment (all optional):
-  GRAPHS_PROJECT_EXPERIMENT_ID  Folder name under results/. Default "default".
-  GRAPHS_PROJECT_CONFIG         YAML to load. Default config/base.yaml.
-  GRAPHS_PROJECT_DATA_ROOT      Where the caches live. Default <repo>/data.
-                                Point it at mounted Drive to survive a Colab
-                                restart.
-  GRAPHS_PROJECT_PROCESSED_DIR  Exact processed dir, bypassing fingerprinting.
-  GRAPHS_PROJECT_GRAPHS_DIR     Exact graph dir, bypassing fingerprinting.
-
-The caches under data/ are keyed by a fingerprint of the config keys that decide
-their contents, not by experiment id: two experiments differing only in a stage-3
-knob share one set of graphs and stage 2 skips entirely, while a change to
-mutual_knn_k or metadata_graph.fields gets its own folder. That also fixes the
-staleness noted in scripts/01: metadata_embeddings.pt used to be cached by path
-alone, so changing metadata_graph.fields silently reused the old records.
-
-Caveat: editing src/graph/*.py does not change the fingerprint, so a stale graph
-dir can be reused - the manifest records the git SHA and dirty flag, and
---force-graphs rebuilds. The SHA is deliberately not in the fingerprint; that
-would throw away all reuse after every commit.
+Output:
+  results/<experiment_id>/config.yaml, manifest.json, logs/, and the
+  retrieval/ and metrics/ outputs of stages 2-5. Caches under data/ are
+  keyed by a fingerprint of the config (see PREPROC_KEYS/GRAPH_KEYS below),
+  not by experiment id, so unrelated experiments can share cached graphs.
 """
 from __future__ import annotations
 

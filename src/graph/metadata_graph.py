@@ -14,27 +14,7 @@ _UNSET = object()
 
 
 class MetadataGraphBuilder(GraphBuilder):
-    """Add edge (i, j) when i and j are mutual k-NN by metadata-record similarity.
-
-    The record is a labelled rendering of the configured metadata fields
-    (see embedder.format_metadata_record), embedded with the same model as the
-    documents. This replaces an earlier rule that joined documents sharing at
-    least 2 of category/source/author: with only 6 categories and 49 sources in
-    the corpus that rule collapsed to "same publisher", producing the densest
-    and least evidence-aligned graph in the study.
-
-    Which fields to include is a measured choice, not a free parameter. Over the
-    609-doc corpus, at matched density, title+author reaches 0.438 oracle
-    connectivity against 0.393 for the old rule with 6.8x fewer edges. Adding
-    category and source on top *lowers* it to 0.401: gold evidence pairs share an
-    author 23x more often than chance, but a category only 3x, so the coarse
-    fields mostly add noise.
-
-    Note that record embeddings supply the edge STRUCTURE only. Node features
-    stay the full-document embeddings that GraphBuilder.build() puts in Data.x,
-    so retrieval scores nodes identically across all graph variants and only the
-    edges differ.
-    """
+    """Add edge (i, j) when i and j are mutual k-NN by metadata-record similarity."""
 
     def __init__(
         self,
