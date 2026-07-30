@@ -15,16 +15,20 @@ import yaml
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
+with open(ROOT / "config" / "base.yaml") as f:
+    cfg = yaml.safe_load(f)
+
 PROCESSED = ROOT / "data" / "processed"
 GRAPHS = ROOT / "data" / "graphs"
-RETRIEVAL = ROOT / "results" / "retrieval"
+
+_results_root = ROOT / cfg.get("results_dir", "results")
+RETRIEVAL = _results_root / "retrieval"
+METRICS = _results_root / "metrics"
 RETRIEVAL.mkdir(parents=True, exist_ok=True)
+METRICS.mkdir(parents=True, exist_ok=True)
 
 _K_BASELINE_CACHE = PROCESSED / "k_baseline.json"
 _SEED_K_CACHE = PROCESSED / "seed_k.json"
-
-with open(ROOT / "config" / "base.yaml") as f:
-    cfg = yaml.safe_load(f)
 
 
 def load_graph(name: str):

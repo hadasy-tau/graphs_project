@@ -7,6 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).parent))
 
 import torch
 import yaml
@@ -14,10 +15,10 @@ import yaml
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
+from _retrieval_common import RETRIEVAL, METRICS
+
 PROCESSED = ROOT / "data" / "processed"
 GRAPHS = ROOT / "data" / "graphs"
-RETRIEVAL = ROOT / "results" / "retrieval"
-METRICS = ROOT / "results" / "metrics"
 
 with open(ROOT / "config" / "base.yaml") as f:
     cfg = yaml.safe_load(f)

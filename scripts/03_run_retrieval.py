@@ -17,8 +17,6 @@ logger = logging.getLogger(__name__)
 
 PROCESSED = ROOT / "data" / "processed"
 GRAPHS = ROOT / "data" / "graphs"
-RETRIEVAL = ROOT / "results" / "retrieval"
-RETRIEVAL.mkdir(parents=True, exist_ok=True)
 
 with open(ROOT / "config" / "base.yaml") as f:
     cfg = yaml.safe_load(f)
@@ -33,6 +31,7 @@ def main():
     from _retrieval_common import (
         calibrate_k, calibrate_seed_k,
         make_result, spot_check, check_degenerate, run_pcst_parallel,
+        RETRIEVAL,
     )
 
     queries = load_jsonl(PROCESSED / "queries.jsonl")

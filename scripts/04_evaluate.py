@@ -5,12 +5,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(Path(__file__).parent))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-RETRIEVAL = ROOT / "results" / "retrieval"
-METRICS = ROOT / "results" / "metrics"
+from _retrieval_common import RETRIEVAL, METRICS
 
 
 def main():
