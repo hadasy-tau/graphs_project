@@ -147,7 +147,6 @@ def _error_analysis(queries):
 
     combined_path = RETRIEVAL / "combined_pcst.jsonl"
     entity_path = RETRIEVAL / "entity_pcst.jsonl"
-    semantic_path = RETRIEVAL / "semantic_pcst.jsonl"
 
     if not (combined_path.exists() and entity_path.exists()):
         logger.warning("Retrieval results not found; skipping error analysis")
