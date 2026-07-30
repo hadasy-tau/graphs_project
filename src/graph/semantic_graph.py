@@ -2,23 +2,15 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 import torch
-import yaml
 
 from src.graph.base import GraphBuilder
-from src.graph.mutual_knn import cosine_mutual_knn_mask
+from src.graph.mutual_knn import cosine_mutual_knn_mask, load_shared_mutual_knn_k
 
 logger = logging.getLogger(__name__)
 
-_CONFIG_PATH = Path(__file__).parent.parent.parent / "config" / "base.yaml"
 _UNSET = object()
-
-
-def _load_mutual_knn_k() -> int | None:
-    with open(_CONFIG_PATH) as f:
-        return yaml.safe_load(f).get("mutual_knn_k")
 
 
 class SemanticGraphBuilder(GraphBuilder):
@@ -29,12 +21,13 @@ class SemanticGraphBuilder(GraphBuilder):
     (typically matched to the entity graph's average degree, or set via the
     shared top-level mutual_knn_k config).
 
-    When mutual_knn_k is not provided, the value is read from config/base.yaml.
+    When mutual_knn_k is not provided, the value is read from the active config
+    (GRAPHS_PROJECT_CONFIG, default config/base.yaml).
     """
 
     def __init__(self, mutual_knn_k: int | None | object = _UNSET):
         if mutual_knn_k is _UNSET:
-            mutual_knn_k = _load_mutual_knn_k()
+            mutual_knn_k = load_shared_mutual_knn_k()
         if mutual_knn_k is None:
             raise ValueError(
                 "SemanticGraphBuilder requires mutual_knn_k "

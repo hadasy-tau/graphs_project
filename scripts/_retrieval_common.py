@@ -4,31 +4,25 @@ import json
 import logging
 import os
 import sys
-from pathlib import Path
 
-ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT))
+# Resolves the active config and every output path from the environment, and puts
+# the repo root on sys.path. Import before anything from src/.
+# RETRIEVAL is re-exported: the nine 03_* scripts import it from here.
+from experiment import GRAPHS, PROCESSED, RETRIEVAL, ROOT, cfg, ensure_dirs  # noqa: F401
 
 import torch
-import yaml
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-with open(ROOT / "config" / "base.yaml") as f:
-    cfg = yaml.safe_load(f)
+# Every 03_* script imports this module, so one call covers them all.
+ensure_dirs()
 
-PROCESSED = ROOT / "data" / "processed"
-GRAPHS = ROOT / "data" / "graphs"
-
-_results_root = ROOT / cfg.get("results_dir", "results")
-RETRIEVAL = _results_root / "retrieval"
-METRICS = _results_root / "metrics"
-RETRIEVAL.mkdir(parents=True, exist_ok=True)
-METRICS.mkdir(parents=True, exist_ok=True)
-
-_K_BASELINE_CACHE = PROCESSED / "k_baseline.json"
-_SEED_K_CACHE = PROCESSED / "seed_k.json"
+# Both are derived from the graphs (k_baseline is the average entity-PCST output
+# size; seed_k is calibrated against a graph's expansion ratio), so they live with
+# the graphs. In data/processed they would be shared by experiments whose graphs
+# differ, and the cache keys below do not mention the graph config.
+_K_BASELINE_CACHE = GRAPHS / "k_baseline.json"
+_SEED_K_CACHE = GRAPHS / "seed_k.json"
 
 
 def load_graph(name: str):

@@ -1,10 +1,36 @@
 """Mutual k-NN sparsification shared by entity / metadata / semantic graphs."""
 from __future__ import annotations
 
+import os
 from collections import defaultdict
 from collections.abc import Mapping
+from pathlib import Path
 
 import torch
+import yaml
+
+_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _config_path() -> Path:
+    """The active config: whatever scripts/experiment.py pointed us at.
+
+    Read at call time, not import time, so a sweep over mutual_knn_k cannot
+    silently fall back to config/base.yaml.
+    """
+    env = os.environ.get("GRAPHS_PROJECT_CONFIG")
+    path = Path(env) if env else _ROOT / "config" / "base.yaml"
+    return path if path.is_absolute() else _ROOT / path
+
+
+def load_shared_mutual_knn_k() -> int | None:
+    """Top-level mutual_knn_k from the active config; None when not pinned.
+
+    The builders take k as an argument and scripts/02 always passes it; this is
+    the fallback for a builder constructed without one.
+    """
+    with open(_config_path(), encoding="utf-8") as f:
+        return yaml.safe_load(f).get("mutual_knn_k")
 
 
 def mutual_knn_pairs(

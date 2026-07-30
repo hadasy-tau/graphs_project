@@ -1,27 +1,23 @@
 """Phase 4: Compute metrics for all retrieval conditions and save summary tables."""
 import logging
-import sys
-from pathlib import Path
 
-ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(Path(__file__).parent))
+# Resolves the active config and every output path from the environment, and puts
+# the repo root on sys.path. Import before anything from src/.
+from experiment import METRICS, RETRIEVAL, ensure_dirs
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
-
-from _retrieval_common import RETRIEVAL, METRICS
 
 
 def main():
     from src.evaluation.evaluator import evaluate_all
 
+    ensure_dirs()
     evaluate_all(RETRIEVAL, METRICS)
 
     # Pretty-print the summary table
     import csv
     summary = METRICS / "summary_table.csv"
-    with open(summary) as f:
+    with open(summary, encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
 
     print("\n=== Retrieval Results Summary ===")

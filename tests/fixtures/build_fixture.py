@@ -10,9 +10,8 @@ You do NOT need to run this. Run it only to cut a different slice:
     python tests/fixtures/build_fixture.py --queries 20    # 20 queries, 100 docs
     python tests/fixtures/build_fixture.py --queries 20 --docs 150
 
-The selection logic lives in tests/common.py (subset_corpus), which
-test_build_graphs.py uses too - it explains why queries are picked before
-documents and why doc_id has to be renumbered.
+The selection logic lives in tests/common.py (subset_corpus) - it explains why
+queries are picked before documents and why doc_id has to be renumbered.
 
 HOW MANY DOCUMENTS FOR HOW MANY QUERIES?
 ----------------------------------------
@@ -33,8 +32,9 @@ grows roughly with docs^2:
          12    60     110 s  (measured)
          20   100      ~5 min (estimate)
 
-Above ~100 documents you are not running a smoke test any more. Use
-tests/test_build_graphs.py to look at graphs at full corpus size.
+Above ~100 documents you are not running a smoke test any more. To look at
+graphs at full corpus size, run the real pipeline:
+scripts/experiment.py --id look --stages 01,02.
 """
 from __future__ import annotations
 

@@ -24,9 +24,18 @@ def main():
     _, query_embs = load_embeddings()
     data, tn, te = load_graph(GRAPH_NAME)
 
+    # The combined graph gets a lower edge cost: its multi-type edges carry more
+    # signal per traversal. Without this, this script and 03_run_retrieval.py
+    # would write different numbers to the same combined_pcst.jsonl.
+    pcst_cfg = dict(cfg["pcst"])
+    if "combined_cost_e" in pcst_cfg:
+        pcst_cfg["cost_e"] = pcst_cfg["combined_cost_e"]
+    logger.info("PCST cfg for %s: topk=%d cost_e=%.2f",
+                GRAPH_NAME, pcst_cfg["topk"], pcst_cfg["cost_e"])
+
     all_retrieved = run_pcst_parallel(
         [query_embs[i] for i in range(len(queries))],
-        data, tn, te, cfg["pcst"],
+        data, tn, te, pcst_cfg,
         desc=f"{GRAPH_NAME}/pcst",
     )
 
