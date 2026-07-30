@@ -43,6 +43,7 @@ def main():
                     "(experiment.py --force-graphs to rebuild).", GRAPHS)
         _write_stats({name: torch.load(GRAPHS / f"{name}_graph.pt", weights_only=False)
                       for name in GRAPH_NAMES}, queries)
+        _build_random_baselines(GRAPH_NAMES)
         logger.info("Phase 2 complete (graphs reused).")
         return
 
@@ -122,12 +123,29 @@ def main():
         logger.info("Saved %s graph", name)
 
     _write_stats({name: data for name, (data, _, _) in graphs.items()}, queries)
+    _build_random_baselines(GRAPH_NAMES)
     logger.info("Phase 2 complete.")
 
 
 def _built(name: str) -> bool:
     return all((GRAPHS / f"{name}_{suffix}").exists()
                for suffix in ("graph.pt", "textual_nodes.csv", "textual_edges.csv"))
+
+
+def _random_baselines_built(name: str) -> bool:
+    return ((GRAPHS / f"{name}_random_structure_graph.pt").exists() and
+            (GRAPHS / f"{name}_shuffled_nodes_graph.pt").exists())
+
+
+def _build_random_baselines(names: tuple[str, ...]) -> None:
+    from src.graph.random_baselines import generate_random_baselines
+    seed = cfg.get("random_seed", 42)
+    for name in names:
+        if _random_baselines_built(name):
+            logger.info("Random baselines for '%s' already exist - skipping.", name)
+            continue
+        logger.info("Building random baselines for '%s'...", name)
+        generate_random_baselines(name, GRAPHS, seed=seed)
 
 
 def _write_stats(datas: dict, queries: list[dict]) -> None:

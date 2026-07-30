@@ -70,7 +70,7 @@ STAGES: dict[str, list[str]] = {
     "04": ["04_evaluate.py"],
     "05": ["05_analyze_results.py"],
 }
-DEFAULT_STAGES = "01,02,03,04"  # 05 is opt-in: it rebuilds graphs nine times
+DEFAULT_STAGES = "02,03,04"
 
 
 class Paths(NamedTuple):
