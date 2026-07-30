@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from _retrieval_common import (
     PROCESSED, RETRIEVAL, logger,
-    load_graph, load_embeddings, calibrate_k, compute_seed_k,
+    load_graph, load_embeddings, calibrate_k, calibrate_seed_k,
     make_result, spot_check, check_degenerate,
 )
 
@@ -28,16 +28,17 @@ def main():
     logger.info("Baseline K = %d", k_baseline)
 
     data, tn, te = load_graph(GRAPH_NAME)
-    seed_k = compute_seed_k(data, k_baseline)
-    logger.info("Seed K for %s = %d (target post-expansion ~%d)", GRAPH_NAME, seed_k, k_baseline)
 
     logger.info("Precomputing similarity matrix and adjacency list...")
     all_sims = precompute_similarities(query_embs, doc_embs)
     adj = build_adj(data)
 
+    seed_k = calibrate_seed_k(all_sims, data, adj, k_baseline, graph_name=GRAPH_NAME)
+    logger.info("Seed K for %s = %d (target post-expansion ~%d)", GRAPH_NAME, seed_k, k_baseline)
+
     results = []
     for i, q in enumerate(queries):
-        retrieved = retrieve_graph_neighborhood(all_sims[i], data, k=seed_k, expand_hops=1, adj=adj)
+        retrieved = retrieve_graph_neighborhood(all_sims[i], data, k=seed_k, expand_hops=1, adj=adj, rerank_to=k_baseline)
         results.append(make_result(q, retrieved))
         if i < 3:
             spot_check(q, retrieved)
