@@ -15,13 +15,7 @@ this module derives two null-model variants that share its node set:
    the true content <-> structure correspondence is destroyed while the
    structure itself is untouched.
 
-Comparing retrieval quality on {original, random-structure, shuffled-nodes}
-separates "does this graph's structure help at all" (vs. random-structure)
-from "does it matter WHICH structure this is, beyond size" (vs.
-shuffled-nodes) - two effects a plain graph-type comparison can't tell apart.
-
-This is a standalone helper, not wired into the main pipeline - run it by hand
-against graphs already saved under data/graphs/:
+Run it by hand against graphs already saved under data/graphs/:
 
     python src/graph/random_baselines.py --graph entity --seed 42
 """
