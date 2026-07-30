@@ -5,29 +5,22 @@ by scripts/02_build_graphs.py as ``<name>_graph.pt`` + its two textual CSVs),
 this module derives two null-model variants that share its node set:
 
 1. **random-structure graph** (:func:`random_structure_graph`) — same nodes,
-   same total edge count, and therefore the exact same average degree, but
-   the edges themselves connect uniformly random pairs of nodes instead of
-   whatever rule (entity overlap, semantic similarity, shared metadata, ...)
-   built the original graph. This is "a graph the same size as this one,
+   same edge count/avg degree, but edges connect uniformly random node pairs
+   instead of whatever rule built the original graph: "this graph's size,
    with none of its structure".
 
-2. **shuffled-nodes graph** (:func:`shuffled_nodes_graph`) — the exact same
-   edge topology (identical edge_index, edge_attr, edge text — every
-   structural statistic: degree sequence, density, components, ... matches
-   the original exactly), but node CONTENT (embedding + text) is randomly
-   permuted across positions. So "from the edges' point of view" nothing
-   changed, but which real document sits at which node is now random: the
-   true content <-> structure correspondence the graph was built to capture
-   is destroyed while the structure itself is untouched.
+2. **shuffled-nodes graph** (:func:`shuffled_nodes_graph`) — identical edge
+   topology (every structural statistic matches the original exactly), but
+   node CONTENT (embedding + text) is randomly permuted across positions:
+   the true content <-> structure correspondence is destroyed while the
+   structure itself is untouched.
 
 Comparing retrieval quality on {original, random-structure, shuffled-nodes}
-separates "does this graph's structure help at all" (original vs.
-random-structure) from "does it matter WHICH structure this is, beyond size"
-(original vs. shuffled-nodes) — the two confounded effects graph-type
-comparisons usually can't tell apart.
+separates "does this graph's structure help at all" (vs. random-structure)
+from "does it matter WHICH structure this is, beyond size" (vs.
+shuffled-nodes) - two effects a plain graph-type comparison can't tell apart.
 
-This is a standalone helper. It is not wired into the main pipeline
-(scripts/02_build_graphs.py, 03_run_retrieval.py, ...) yet — run it by hand
+This is a standalone helper, not wired into the main pipeline - run it by hand
 against graphs already saved under data/graphs/:
 
     python src/graph/random_baselines.py --graph entity --seed 42

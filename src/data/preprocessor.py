@@ -132,8 +132,6 @@ def extract_entities(
     return result
 
 
-
-
 def _entity_norm_key(entity: str) -> str:
     """Return a conservative comparison key for exact deterministic entity merges.
 

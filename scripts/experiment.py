@@ -3,7 +3,7 @@
 Two roles, deliberately in one module:
 
 *Imported* by the stage scripts, it resolves the active config and every output
-path from the environment - so `results/<experiment_id>/` replaces the hardcoded
+path from the environment, so `results/<experiment_id>/` replaces the hardcoded
 `results/metrics` and `results/retrieval` the stages used to write to.
 
 *Run* as a script, it expands a sweep of config values into experiments, and
@@ -13,21 +13,15 @@ drives the stages for each one:
     python scripts/experiment.py --id knn10 --set mutual_knn_k=10
     python scripts/experiment.py --id 00_prepare --stages 01
 
-Everything an experiment produces lands under results/<id>/:
+Everything an experiment produces lands under results/<id>/: config.yaml (the
+merged config actually consumed), manifest.json (git SHA, overrides, resolved
+dirs, per-stage status/duration), logs/ (one file per stage plus run.log), and
+the retrieval/ and metrics/ outputs of stages 2-5.
 
-    config.yaml    the merged config the stages actually read - not a copy of
-                   base.yaml, the file the run consumed
-    manifest.json  git SHA, overrides, resolved dirs, per-stage status/duration
-    logs/          run.log plus one file per stage: logging, print(), tqdm,
-                   tracebacks - exactly what the stage emitted
-    retrieval/     *.jsonl from stage 3
-    metrics/       *.csv from stages 2, 4 and 5
-
-Why the environment rather than a --config flag on each stage: the stages read
-the config and build their output paths at IMPORT time; the nine 03_*.py
-scripts bind those constants from _retrieval_common at import, so an env-based
-fix leaves all nine untouched; and src/graph/semantic_graph.py reads the config
-itself, where no flag can reach. Env also inherits through subprocess for free.
+Why the environment rather than a --config flag: the stages, and
+src/graph/semantic_graph.py, read the config and build output paths at IMPORT
+time, so no flag could reach all of them anyway. Env also inherits through
+subprocess for free.
 
 Environment (all optional):
   GRAPHS_PROJECT_EXPERIMENT_ID  Folder name under results/. Default "default".
@@ -39,11 +33,9 @@ Environment (all optional):
   GRAPHS_PROJECT_GRAPHS_DIR     Exact graph dir, bypassing fingerprinting.
 
 The caches under data/ are keyed by a fingerprint of the config keys that decide
-their contents, not by experiment id: two experiments differing only in a stage-3
-knob share one set of graphs and stage 2 skips entirely, while a change to
-mutual_knn_k or metadata_graph.fields gets its own folder. That also fixes the
-staleness noted in scripts/01: metadata_embeddings.pt used to be cached by path
-alone, so changing metadata_graph.fields silently reused the old records.
+their contents, not by experiment id: two experiments differing only in a
+stage-3 knob share one set of graphs, while a change to mutual_knn_k or
+metadata_graph.fields gets its own folder.
 
 Caveat: editing src/graph/*.py does not change the fingerprint, so a stale graph
 dir can be reused - the manifest records the git SHA and dirty flag, and
