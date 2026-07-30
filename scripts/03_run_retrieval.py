@@ -31,7 +31,7 @@ def main():
         retrieve_dense, retrieve_graph_neighborhood,
     )
     from _retrieval_common import (
-        calibrate_k, compute_seed_k,
+        calibrate_k, calibrate_seed_k,
         make_result, spot_check, check_degenerate, run_pcst_parallel,
     )
 
@@ -56,17 +56,30 @@ def main():
     logger.info("Precomputing similarity matrix (%d x %d)...", query_embs.shape[0], doc_embs.shape[0])
     all_sims = precompute_similarities(query_embs, doc_embs)
 
-    # --- Compute seed K (analytic, from median degree) and build adj per graph ---
-    seed_k_by_graph = {}
+    # --- Build adjacency lists, then empirically calibrate seed_k per graph ---
     adj_by_graph = {}
     for name in graph_names:
         data, _, _ = graphs[name]
-        seed_k_by_graph[name] = compute_seed_k(data, k_baseline)
         adj_by_graph[name] = build_adj(data)
+
+    seed_k_by_graph = {}
+    for name in graph_names:
+        data, _, _ = graphs[name]
+        seed_k_by_graph[name] = calibrate_seed_k(
+            all_sims, data, adj_by_graph[name], k_baseline, graph_name=name,
+        )
         logger.info(
             "Seed K for %s = %d (target post-expansion ~%d)",
             name, seed_k_by_graph[name], k_baseline,
         )
+
+    # Per-graph PCST config: combined graph gets a lower edge cost because its
+    # multi-type edges carry more signal per traversal than single-type edges.
+    pcst_cfg_by_graph = {name: dict(cfg["pcst"]) for name in graph_names}
+    if "combined_cost_e" in cfg["pcst"]:
+        pcst_cfg_by_graph["combined"]["cost_e"] = cfg["pcst"]["combined_cost_e"]
+    for name, pcfg in pcst_cfg_by_graph.items():
+        logger.info("PCST cfg for %s: topk=%d cost_e=%.2f", name, pcfg["topk"], pcfg["cost_e"])
 
     # --- Define all conditions ---
     conditions: list[tuple[str, str | None, str]] = (
@@ -87,7 +100,7 @@ def main():
             data, tn, te = graphs[graph_name]
             all_retrieved = run_pcst_parallel(
                 [query_embs[i] for i in range(len(queries))],
-                data, tn, te, cfg["pcst"],
+                data, tn, te, pcst_cfg_by_graph[graph_name],
                 desc=f"{label}/pcst",
             )
             results = []
@@ -105,6 +118,7 @@ def main():
                     retrieved = retrieve_graph_neighborhood(
                         all_sims[i], data, k=seed_k_by_graph[graph_name],
                         expand_hops=1, adj=adj_by_graph[graph_name],
+                        rerank_to=k_baseline,
                     )
                 results.append(make_result(q, retrieved))
                 if i < 3:

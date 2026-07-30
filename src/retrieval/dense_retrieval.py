@@ -43,30 +43,42 @@ def retrieve_graph_neighborhood(
     k: int,
     expand_hops: int = 1,
     adj: dict[int, list[int]] | None = None,
+    rerank_to: int | None = None,
 ) -> list[int]:
-    """Top-K by precomputed sim, then expand expand_hops graph hops.
+    """Top-K by precomputed sim, expand expand_hops graph hops, optionally rerank.
 
     Pass a prebuilt adj (from build_adj) to avoid rebuilding per query.
+    If rerank_to is set and the expanded set exceeds it, re-score all candidates
+    by cosine similarity to the query and keep only the top rerank_to docs.
+    This recovers precision after the expansion step without sacrificing recall.
     """
     k = min(k, sims_row.shape[0])
     _, topk_idx = torch.topk(sims_row, k)
     seed_nodes = set(topk_idx.tolist())
 
     if graph_data.edge_index.numel() == 0 or expand_hops == 0:
-        return sorted(seed_nodes)
+        candidates = sorted(seed_nodes)
+    else:
+        if adj is None:
+            adj = build_adj(graph_data)
 
-    if adj is None:
-        adj = build_adj(graph_data)
+        frontier = set(seed_nodes)
+        visited = set(seed_nodes)
+        for _ in range(expand_hops):
+            next_frontier = set()
+            for node in frontier:
+                for neighbor in adj.get(node, []):
+                    if neighbor not in visited:
+                        next_frontier.add(neighbor)
+            visited |= next_frontier
+            frontier = next_frontier
 
-    frontier = set(seed_nodes)
-    visited = set(seed_nodes)
-    for _ in range(expand_hops):
-        next_frontier = set()
-        for node in frontier:
-            for neighbor in adj.get(node, []):
-                if neighbor not in visited:
-                    next_frontier.add(neighbor)
-        visited |= next_frontier
-        frontier = next_frontier
+        candidates = sorted(visited)
 
-    return sorted(visited)
+    if rerank_to is not None and len(candidates) > rerank_to:
+        cand_tensor = torch.tensor(candidates, dtype=torch.long)
+        scores = sims_row[cand_tensor]
+        top_idx = scores.topk(rerank_to).indices
+        return sorted(cand_tensor[top_idx].tolist())
+
+    return candidates

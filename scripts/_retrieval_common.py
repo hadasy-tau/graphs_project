@@ -1,4 +1,5 @@
 """Shared helpers for 03_* retrieval scripts."""
+import hashlib
 import json
 import logging
 import os
@@ -20,6 +21,7 @@ RETRIEVAL = ROOT / "results" / "retrieval"
 RETRIEVAL.mkdir(parents=True, exist_ok=True)
 
 _K_BASELINE_CACHE = PROCESSED / "k_baseline.json"
+_SEED_K_CACHE = PROCESSED / "seed_k.json"
 
 with open(ROOT / "config" / "base.yaml") as f:
     cfg = yaml.safe_load(f)
@@ -39,16 +41,31 @@ def load_embeddings():
     return doc_embs, query_embs
 
 
+def _pcst_config_hash() -> str:
+    """Short hash of the PCST config so the cache busts when params change."""
+    pcst_cfg = cfg.get("pcst", {})
+    blob = json.dumps(pcst_cfg, sort_keys=True).encode()
+    return hashlib.sha1(blob).hexdigest()[:8]
+
+
 def calibrate_k(queries, query_embs) -> int:
     """PCST on entity graph for 50 queries; return rounded average output size.
 
-    Result is cached to data/processed/k_baseline.json so multiple no_pcst
-    scripts don't each repeat the 50-query entity-PCST calibration run.
+    Result is cached to data/processed/k_baseline.json keyed by a hash of the
+    PCST config, so the cache auto-invalidates when topk/cost_e/topk_e change.
     """
+    cfg_hash = _pcst_config_hash()
+    cache_key = f"k_baseline_{cfg_hash}"
+
     if _K_BASELINE_CACHE.exists():
-        k = json.loads(_K_BASELINE_CACHE.read_text())["k_baseline"]
-        logger.info("Loaded cached k_baseline=%d from %s", k, _K_BASELINE_CACHE.name)
-        return k
+        cache = json.loads(_K_BASELINE_CACHE.read_text())
+        if cache_key in cache:
+            k = cache[cache_key]
+            logger.info("Loaded cached k_baseline=%d (cfg_hash=%s)", k, cfg_hash)
+            return k
+        logger.info("PCST config changed (cfg_hash=%s); re-calibrating k_baseline", cfg_hash)
+    else:
+        cache = {}
 
     from src.retrieval.pcst_retrieval import retrieve_with_pcst
     pcst_cfg = cfg["pcst"]
@@ -65,23 +82,62 @@ def calibrate_k(queries, query_embs) -> int:
         sizes.append(len(retrieved))
     k = max(1, round(sum(sizes) / len(sizes)))
 
-    _K_BASELINE_CACHE.write_text(json.dumps({"k_baseline": k}))
-    logger.info("k_baseline=%d written to %s", k, _K_BASELINE_CACHE.name)
+    cache[cache_key] = k
+    _K_BASELINE_CACHE.write_text(json.dumps(cache))
+    logger.info("k_baseline=%d (cfg_hash=%s) written to %s", k, cfg_hash, _K_BASELINE_CACHE.name)
     return k
 
 
-def compute_seed_k(graph_data, k_baseline: int) -> int:
-    """Estimate seed K from median node degree.
+def calibrate_seed_k(
+    all_sims: torch.Tensor,
+    graph_data,
+    adj: dict,
+    k_baseline: int,
+    graph_name: str,
+    n_sample: int = 50,
+) -> int:
+    """Empirically find seed_k so the mean post-expansion size ≈ k_baseline.
 
-    After 1-hop expansion the expected final size is seed_k * (1 + median_deg).
-    Solving for seed_k that hits k_baseline is O(E) — no sampling needed.
+    Runs the actual graph neighborhood expansion on n_sample queries using
+    seed_k = k_baseline as an upper bound, measures the mean expansion ratio,
+    then solves: seed_k = round(k_baseline / ratio).
+
+    Result is cached per (graph_name, k_baseline) so it only runs once.
     """
-    n = graph_data.num_nodes or 0
-    if n == 0 or graph_data.edge_index.numel() == 0:
+    from src.retrieval.dense_retrieval import retrieve_graph_neighborhood
+
+    cache_key = f"{graph_name}_{k_baseline}"
+    cache: dict = json.loads(_SEED_K_CACHE.read_text()) if _SEED_K_CACHE.exists() else {}
+    if cache_key in cache:
+        k = cache[cache_key]
+        logger.info("Loaded cached seed_k[%s]=%d", graph_name, k)
+        return k
+
+    if graph_data.edge_index.numel() == 0:
+        logger.info("seed_k[%s]=%d (no edges — no expansion)", graph_name, k_baseline)
+        cache[cache_key] = k_baseline
+        _SEED_K_CACHE.write_text(json.dumps(cache))
         return k_baseline
-    degrees = torch.bincount(graph_data.edge_index[0], minlength=n).float()
-    median_deg = float(degrees.median().item())
-    return max(1, round(k_baseline / (1.0 + median_deg)))
+
+    n_sample = min(n_sample, all_sims.shape[0])
+    indices = torch.linspace(0, all_sims.shape[0] - 1, n_sample).long().tolist()
+    sizes = [
+        len(retrieve_graph_neighborhood(
+            all_sims[i], graph_data, k=k_baseline, expand_hops=1, adj=adj
+        ))
+        for i in indices
+    ]
+    mean_size = sum(sizes) / len(sizes)
+    ratio = mean_size / k_baseline
+    seed_k = max(1, round(k_baseline / ratio))
+
+    logger.info(
+        "seed_k[%s]: mean_expansion=%.1f ratio=%.2f -> seed_k=%d",
+        graph_name, mean_size, ratio, seed_k,
+    )
+    cache[cache_key] = seed_k
+    _SEED_K_CACHE.write_text(json.dumps(cache))
+    return seed_k
 
 
 def make_result(q: dict, retrieved: list[int]) -> dict:

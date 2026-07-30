@@ -26,9 +26,10 @@ metadata_graph:
   fields: [title, author]
 
 pcst:
-  topk: 3
+  topk: 6
   topk_e: 5
   cost_e: 0.5
+  combined_cost_e: 0.25
 
 dense_baseline:
   k: null   # set automatically to match average PCST output size
