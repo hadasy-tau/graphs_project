@@ -33,5 +33,3 @@ pcst:
 
 dense_baseline:
   k: null   # set automatically to match average PCST output size
-
-results_dir: results2   # output folder for scripts 3-5; change here to run a new experiment

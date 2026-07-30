@@ -1,29 +1,20 @@
 """Phase 1: Download and preprocess MultiHop-RAG; compute embeddings and NER."""
 import json
 import logging
-import sys
-from pathlib import Path
 
-ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT))
+# Resolves the active config and every output path from the environment, and puts
+# the repo root on sys.path. Import before anything from src/.
+from experiment import PROCESSED, cfg, ensure_dirs
 
-import torch
-import yaml
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
-
-PROCESSED = ROOT / "data" / "processed"
-PROCESSED.mkdir(parents=True, exist_ok=True)
-
-with open(ROOT / "config" / "base.yaml") as f:
-    cfg = yaml.safe_load(f)
 
 
 def main():
     from src.data.loader import load_multihop_rag, save_jsonl
     from src.data.preprocessor import clean_text, extract_entities
     from src.data.embedder import embed_documents, load_or_compute
+
+    ensure_dirs()
 
     # --- 1. Load dataset ---
     logger.info("Loading MultiHop-RAG...")
@@ -56,8 +47,9 @@ def main():
     logger.info("Embeddings shape: %s", tuple(emb.shape))
 
     # --- 5b. Compute and cache metadata record embeddings (metadata graph edges) ---
-    # Cached by PATH only, so this file goes stale silently if you change
-    # metadata_graph.fields — delete it when you do.
+    # PROCESSED is fingerprinted over embedding/ner/metadata_graph, so changing
+    # metadata_graph.fields resolves to a different folder and these records are
+    # recomputed rather than silently reused. See scripts/experiment.py.
     from src.data.embedder import embed_metadata_records
     meta_emb = load_or_compute(
         PROCESSED / "metadata_embeddings.pt",
@@ -88,7 +80,7 @@ def main():
     entities_path = PROCESSED / "entities.json"
     if entities_path.exists():
         logger.info("Loading cached entities from %s", entities_path)
-        with open(entities_path) as f:
+        with open(entities_path, encoding="utf-8") as f:
             entities_raw = json.load(f)
         entities = {int(k): set(v) for k, v in entities_raw.items()}
     else:
@@ -102,7 +94,7 @@ def main():
             canonicalize_threshold=ner_cfg["canonicalize_threshold"],
         )
         entities_serializable = {k: sorted(v) for k, v in entities.items()}
-        with open(entities_path, "w") as f:
+        with open(entities_path, "w", encoding="utf-8") as f:
             json.dump(entities_serializable, f)
         logger.info("Saved entities for %d docs", len(entities))
 

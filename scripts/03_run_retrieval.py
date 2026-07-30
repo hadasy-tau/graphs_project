@@ -3,23 +3,17 @@ import logging
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(Path(__file__).parent))
+
+# Resolves the active config and every output path from the environment, and puts
+# the repo root on sys.path. Import before anything from src/.
+from experiment import GRAPHS, PROCESSED, RETRIEVAL, cfg
 
 import pandas as pd
 import torch
-import yaml
 from tqdm import tqdm
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
-
-PROCESSED = ROOT / "data" / "processed"
-GRAPHS = ROOT / "data" / "graphs"
-
-with open(ROOT / "config" / "base.yaml") as f:
-    cfg = yaml.safe_load(f)
 
 
 def main():
@@ -31,7 +25,6 @@ def main():
     from _retrieval_common import (
         calibrate_k, calibrate_seed_k,
         make_result, spot_check, check_degenerate, run_pcst_parallel,
-        RETRIEVAL,
     )
 
     queries = load_jsonl(PROCESSED / "queries.jsonl")

@@ -1,27 +1,16 @@
 """Phase 2: Build all four graph variants and save them to disk."""
 import json
 import logging
-import sys
-from pathlib import Path
 
-ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT))
+# Resolves the active config and every output path from the environment, and puts
+# the repo root on sys.path. Import before anything from src/.
+from experiment import GRAPHS, METRICS, PROCESSED, cfg, ensure_dirs
 
-import pandas as pd
 import torch
-import yaml
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-PROCESSED = ROOT / "data" / "processed"
-GRAPHS = ROOT / "data" / "graphs"
-GRAPHS.mkdir(parents=True, exist_ok=True)
-METRICS = ROOT / "results" / "metrics"
-METRICS.mkdir(parents=True, exist_ok=True)
-
-with open(ROOT / "config" / "base.yaml") as f:
-    cfg = yaml.safe_load(f)
+GRAPH_NAMES = ("entity", "metadata", "semantic", "combined")
 
 
 def main():
@@ -32,6 +21,8 @@ def main():
     from src.graph.semantic_graph import SemanticGraphBuilder
     from src.graph.combined_graph import CombinedGraphBuilder
 
+    ensure_dirs()
+
     # --- Load preprocessed data ---
     corpus = load_jsonl(PROCESSED / "corpus.jsonl")
     queries = load_jsonl(PROCESSED / "queries.jsonl")
@@ -40,8 +31,20 @@ def main():
         PROCESSED / "metadata_embeddings.pt", weights_only=True
     )
 
-    with open(PROCESSED / "entities.json") as f:
+    with open(PROCESSED / "entities.json", encoding="utf-8") as f:
         entities = {int(k): set(v) for k, v in json.load(f).items()}
+
+    # GRAPHS is fingerprinted over the graph-affecting config, so this fires when
+    # another experiment already built these exact graphs - embedding one text per
+    # edge is the most expensive step in the pipeline. Stats are still written,
+    # because METRICS is per experiment.
+    if all(_built(name) for name in GRAPH_NAMES):
+        logger.info("Graphs already built in %s - reusing them "
+                    "(experiment.py --force-graphs to rebuild).", GRAPHS)
+        _write_stats({name: torch.load(GRAPHS / f"{name}_graph.pt", weights_only=False)
+                      for name in GRAPH_NAMES}, queries)
+        logger.info("Phase 2 complete (graphs reused).")
+        return
 
     embed_fn = lambda texts: embed_texts(
         texts,
@@ -106,14 +109,6 @@ def main():
         "combined": (combined_data, combined_tn, combined_te),
     }
 
-    builders = {
-        "entity": entity_builder,
-        "metadata": metadata_builder,
-        "semantic": semantic_builder,
-        "combined": combined_builder,
-    }
-
-    all_stats = []
     for name, (data, tn, te) in graphs.items():
         torch.save(data, GRAPHS / f"{name}_graph.pt")
         tn.to_csv(GRAPHS / f"{name}_textual_nodes.csv", index=False)
@@ -124,19 +119,32 @@ def main():
         assert len(te) == data.edge_index.shape[1], f"{name}: textual_edges rows != num_edges"
         assert not data.edge_attr.isnan().any(), f"{name}: NaN in edge_attr"
 
-        stats = builders[name].compute_stats(data, queries, name=name)
-        all_stats.append(stats)
         logger.info("Saved %s graph", name)
 
-    # --- Save graph stats ---
+    _write_stats({name: data for name, (data, _, _) in graphs.items()}, queries)
+    logger.info("Phase 2 complete.")
+
+
+def _built(name: str) -> bool:
+    return all((GRAPHS / f"{name}_{suffix}").exists()
+               for suffix in ("graph.pt", "textual_nodes.csv", "textual_edges.csv"))
+
+
+def _write_stats(datas: dict, queries: list[dict]) -> None:
     import csv
+    from src.graph.semantic_graph import SemanticGraphBuilder
+
+    # compute_stats lives on GraphBuilder and uses no builder state, so any
+    # instance will do - the k is irrelevant here.
+    compute_stats = SemanticGraphBuilder(mutual_knn_k=1).compute_stats
+    all_stats = [compute_stats(data, queries, name=name) for name, data in datas.items()]
+
     stats_path = METRICS / "graph_stats.csv"
-    with open(stats_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=all_stats[0].keys())
+    with open(stats_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=list(all_stats[0].keys()))
         writer.writeheader()
         writer.writerows(all_stats)
     logger.info("Graph stats saved to %s", stats_path)
-    logger.info("Phase 2 complete.")
 
 
 def _target_knn_k(target_avg_degree: float, n_nodes: int) -> int:

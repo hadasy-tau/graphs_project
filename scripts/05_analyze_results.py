@@ -2,32 +2,22 @@
 import csv
 import json
 import logging
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(Path(__file__).parent))
+# Resolves the active config and every output path from the environment, and puts
+# the repo root on sys.path. Import before anything from src/.
+from experiment import METRICS, PROCESSED, RETRIEVAL, cfg, ensure_dirs
 
 import torch
-import yaml
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
-
-from _retrieval_common import RETRIEVAL, METRICS
-
-PROCESSED = ROOT / "data" / "processed"
-GRAPHS = ROOT / "data" / "graphs"
-
-with open(ROOT / "config" / "base.yaml") as f:
-    cfg = yaml.safe_load(f)
 
 
 def main():
     from src.data.loader import load_jsonl
     from src.evaluation.metrics import aggregate
 
+    ensure_dirs()
     queries = load_jsonl(PROCESSED / "queries.jsonl")
     embeddings = torch.load(PROCESSED / "embeddings.pt", weights_only=True)
 
@@ -74,7 +64,7 @@ def _sweep_semantic_knn(queries, embeddings):
     from src.retrieval.pcst_retrieval import retrieve_with_pcst
     from src.evaluation.metrics import aggregate
 
-    with open(PROCESSED / "entities.json") as f:
+    with open(PROCESSED / "entities.json", encoding="utf-8") as f:
         entities = {int(k): set(v) for k, v in json.load(f).items()}
     corpus = load_jsonl(PROCESSED / "corpus.jsonl")
     query_embs = torch.load(PROCESSED / "query_embeddings.pt", weights_only=True)
@@ -116,7 +106,7 @@ def _sweep_entity_overlap(queries, embeddings):
     from src.retrieval.pcst_retrieval import retrieve_with_pcst
     from src.evaluation.metrics import aggregate
 
-    with open(PROCESSED / "entities.json") as f:
+    with open(PROCESSED / "entities.json", encoding="utf-8") as f:
         entities = {int(k): set(v) for k, v in json.load(f).items()}
     corpus = load_jsonl(PROCESSED / "corpus.jsonl")
     query_embs = torch.load(PROCESSED / "query_embeddings.pt", weights_only=True)
@@ -194,7 +184,7 @@ def _write_csv(rows: list[dict], path: Path) -> None:
     if not rows:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", newline="") as f:
+    with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)
