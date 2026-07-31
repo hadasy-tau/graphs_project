@@ -129,45 +129,56 @@ def shuffled_nodes_graph(
     textual_edges: pd.DataFrame,
     seed: int | None = None,
 ) -> tuple[Data, pd.DataFrame, pd.DataFrame, list[int]]:
-    """Node-relabeling baseline: same structure, randomized node identities.
+    """Node-relabeling baseline implemented by permuting edges, not node content.
 
-    Edge topology (edge_index), edge embeddings (edge_attr) and edge text are
-    copied verbatim, so every structural statistic is identical to the input.
-    A random permutation decides which document's embedding/text now sits at
-    each node position, severing the real correspondence between structure
-    and content that the original graph was built to capture.
+    This baseline destroys the real correspondence between graph structure and
+    document identity while preserving the invariant that node position equals
+    document id. A random permutation rewires every edge (u, v) to
+    (perm[u], perm[v]).
 
-    Returns ``(data, textual_nodes, textual_edges, perm)`` where
-    ``perm[new_position]`` is the original node index whose content now lives
-    at ``new_position`` — kept around so a run can be inspected/undone later.
+    Compared with permuting ``data.x`` directly, this formulation avoids any
+    need to map retrieved node positions back to original document ids during
+    evaluation. Retrieval can keep returning ordinary document ids.
+
+    The document-level null graph is equivalent to the node-content permutation:
+    the same document pairs become connected, edge embeddings stay attached to
+    the same edge rows, and node embeddings remain at their original document ids.
+
+    Returns ``(data, textual_nodes, textual_edges, perm)`` where ``perm`` is the
+    node permutation used to rewire the edges.
     """
     rng = random.Random(seed)
     n = data.num_nodes
     perm = list(range(n))
     rng.shuffle(perm)
 
+    perm_t = torch.tensor(perm, dtype=torch.long)
+
+    # Rewire edges through the permutation:
+    # original edge (u, v) becomes (perm[u], perm[v]).
+    new_edge_index = perm_t[data.edge_index]
+
     new_data = Data(
-        x=data.x[perm].clone() if data.x is not None else None,
-        edge_index=data.edge_index.clone(),
+        x=data.x.clone() if data.x is not None else None,
+        edge_index=new_edge_index.clone(),
         edge_attr=data.edge_attr.clone() if data.edge_attr is not None else None,
         node_idx=list(range(n)),
         edge_idx=list(range(data.edge_index.shape[1])),
     )
 
-    new_textual_nodes = textual_nodes.iloc[perm].reset_index(drop=True).copy()
-    new_textual_nodes.insert(1, "orig_node_id", new_textual_nodes["node_id"])
-    new_textual_nodes["node_id"] = range(n)
+    # Nodes stay in their original document-id positions.
+    new_textual_nodes = textual_nodes.copy()
 
-    # Edge text/attr stay exactly as they were (the "edges' point of view" is
-    # unchanged); only src/dst are re-derived, since they name whichever
-    # document's content now actually sits at that endpoint.
-    node_text = new_textual_nodes["node_attr"].tolist()
+    # Edge descriptions stay with their original edge rows, but endpoint names
+    # must be recomputed because the endpoints changed.
+    node_text = textual_nodes["node_attr"].tolist()
     new_textual_edges = textual_edges.copy()
-    new_textual_edges["src"] = [node_text[i] for i in data.edge_index[0].tolist()]
-    new_textual_edges["dst"] = [node_text[i] for i in data.edge_index[1].tolist()]
+    new_textual_edges["src"] = [node_text[i] for i in new_edge_index[0].tolist()]
+    new_textual_edges["dst"] = [node_text[i] for i in new_edge_index[1].tolist()]
 
     logger.info(
-        "shuffled_nodes_graph: n=%d, edge topology identical to input, node content permuted (seed=%s)",
+        "shuffled_nodes_graph: n=%d, edge topology relabelled through node permutation, "
+        "node content/id positions unchanged (seed=%s)",
         n, seed,
     )
     return new_data, new_textual_nodes, new_textual_edges, perm
