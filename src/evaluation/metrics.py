@@ -5,10 +5,16 @@ from statistics import mean
 
 
 def evidence_recall(retrieved: list[int], gold: list[int]) -> float:
-    """Fraction of gold docs that appear in retrieved set."""
-    if not gold:
+    """Fraction of distinct gold docs that appear in retrieved set.
+
+    MultiHop-RAG sometimes cites the same article multiple times for different
+    evidence facts. Retrieval is document-level, so duplicate gold document ids
+    should not reduce recall when the document was retrieved.
+    """
+    gold_set = set(gold)
+    if not gold_set:
         return 1.0
-    return len(set(retrieved) & set(gold)) / len(gold)
+    return len(set(retrieved) & gold_set) / len(gold_set)
 
 
 def full_hit_rate(retrieved: list[int], gold: list[int]) -> bool:

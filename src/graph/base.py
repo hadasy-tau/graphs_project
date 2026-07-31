@@ -141,11 +141,14 @@ class GraphBuilder(ABC):
         max_possible_edges = n * (n - 1) / 2
         density = e / max_possible_edges if max_possible_edges > 0 else 0.0
 
-        # Oracle connectivity: fraction of gold doc pairs directly connected
+        # Oracle connectivity: fraction of distinct gold doc pairs directly connected.
+        # MultiHop-RAG sometimes cites the same article multiple times for different
+        # evidence facts. Since the graph is document-level, duplicates should not
+        # create self-pairs or repeated pair counts.
         connected_pairs = 0
         total_pairs = 0
         for q in queries:
-            gold = q["gold_doc_ids"]
+            gold = list(dict.fromkeys(q["gold_doc_ids"]))
             for i in range(len(gold)):
                 for j in range(i + 1, len(gold)):
                     total_pairs += 1
