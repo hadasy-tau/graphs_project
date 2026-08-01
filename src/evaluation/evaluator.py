@@ -56,7 +56,22 @@ def split_evaluable_results(results: list[dict]) -> tuple[list[dict], dict]:
     return evaluable, diagnostics
 
 
-def evaluate_all(results_dir: str | Path, output_dir: str | Path) -> None:
+NULL_SUFFIXES = ("random_structure", "shuffled_nodes")
+BASE_GRAPHS = ("entity", "metadata", "semantic", "combined")
+
+
+def expected_with_nulls(base: set[str] = EXPECTED_CONDITIONS) -> set[str]:
+    """The 9 standard conditions plus the 16 null-graph conditions (25 total)."""
+    out = set(base)
+    for g in BASE_GRAPHS:
+        for s in NULL_SUFFIXES:
+            out.add(f"{g}_{s}_pcst")
+            out.add(f"{g}_{s}_no_pcst")
+    return out
+
+
+def evaluate_all(results_dir: str | Path, output_dir: str | Path,
+                 expected: set[str] | None = None) -> None:
     """Evaluate the expected retrieval conditions and save summary CSVs.
 
     Only the conditions in EXPECTED_CONDITIONS are evaluated; any other .jsonl
@@ -69,10 +84,11 @@ def evaluate_all(results_dir: str | Path, output_dir: str | Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     paths = sorted(results_dir.glob("*.jsonl"))
+    expected = EXPECTED_CONDITIONS if expected is None else set(expected)
     found = {p.stem for p in paths}
-    _require_all_conditions(results_dir, found)
-    _warn_unexpected_files(results_dir, found)
-    paths = [p for p in paths if p.stem in EXPECTED_CONDITIONS]
+    _require_all_conditions(results_dir, found, expected)
+    _warn_unexpected_files(results_dir, found, expected)
+    paths = [p for p in paths if p.stem in expected]
 
     rows: list[dict] = []
     qtype_rows: list[dict] = []
@@ -126,25 +142,27 @@ def _build_row(condition: str, evaluable: list[dict], diag: dict) -> dict:
     }
 
 
-def _require_all_conditions(results_dir: Path, found: set[str]) -> None:
-    missing = EXPECTED_CONDITIONS - found
+def _require_all_conditions(results_dir: Path, found: set[str],
+                            expected: set[str] = EXPECTED_CONDITIONS) -> None:
+    missing = expected - found
     if missing:
         raise FileNotFoundError(
             f"Missing retrieval result files for condition(s): "
             f"{', '.join(sorted(missing))}. Expected all "
-            f"{len(EXPECTED_CONDITIONS)} conditions in {results_dir}. "
+            f"{len(expected)} conditions in {results_dir}. "
             f"Run the corresponding scripts/03_*.py script(s) before evaluating."
         )
 
 
-def _warn_unexpected_files(results_dir: Path, found: set[str]) -> None:
+def _warn_unexpected_files(results_dir: Path, found: set[str],
+                           expected: set[str] = EXPECTED_CONDITIONS) -> None:
     """Stale result files from earlier experiments must not enter the summary."""
     unexpected = found - EXPECTED_CONDITIONS
     if unexpected:
         logger.warning(
             "Ignoring %d unexpected .jsonl file(s) in %s: %s. Only the %d expected "
             "conditions are evaluated.",
-            len(unexpected), results_dir, sorted(unexpected), len(EXPECTED_CONDITIONS),
+            len(unexpected), results_dir, sorted(unexpected), len(expected),
         )
 
 

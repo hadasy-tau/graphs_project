@@ -1,0 +1,17 @@
+metric,size,combined,semantic,entity,metadata,winner,spread
+precision,9.0,0.2017,0.2067,0.1957,0.2079,metadata,0.0121
+precision,10.0,0.1899,0.193,0.1912,0.1923,semantic,0.0031
+precision,11.0,0.1792,0.1811,0.179,0.18,semantic,0.0021
+precision,11.8,0.1707,0.1716,0.1694,0.1709,semantic,0.0022
+evidence_recall,9.0,0.6836,0.6869,0.6146,0.669,semantic,0.0724
+evidence_recall,10.0,0.7115,0.7073,0.6855,0.6833,combined,0.0282
+evidence_recall,11.0,0.7349,0.7305,0.6965,0.7017,combined,0.0385
+evidence_recall,11.8,0.7537,0.749,0.7052,0.7181,combined,0.0485
+full_hit_rate,9.0,0.3967,0.4048,0.3068,0.3679,semantic,0.098
+full_hit_rate,10.0,0.4319,0.4287,0.3982,0.3841,combined,0.0478
+full_hit_rate,11.0,0.4612,0.4576,0.4132,0.407,combined,0.0542
+full_hit_rate,11.8,0.4846,0.4808,0.4252,0.428,combined,0.0594
+f1,9.0,0.3057,0.3112,0.2858,0.3093,semantic,0.0254
+f1,10.0,0.2945,0.2968,0.2916,0.2926,semantic,0.0053
+f1,11.0,0.2829,0.2842,0.2776,0.2793,semantic,0.0066
+f1,11.8,0.2737,0.2741,0.2666,0.2697,semantic,0.0075

@@ -32,7 +32,12 @@ def main():
     query_embs = torch.load(PROCESSED / "query_embeddings.pt", weights_only=True)
 
     # --- Load all graphs ---
-    graph_names = ["entity", "metadata", "semantic", "combined"]
+    base_graph_names = ["entity", "metadata", "semantic", "combined"]
+    graph_names = list(base_graph_names)
+    if cfg.get("null_baselines", False):
+        graph_names += [f"{n}_{s}" for n in base_graph_names
+                        for s in ("random_structure", "shuffled_nodes")]
+    logger.info("Graphs for this arm (%d): %s", len(graph_names), graph_names)
     graphs = {}
     for name in graph_names:
         data = torch.load(GRAPHS / f"{name}_graph.pt", weights_only=False)
@@ -69,7 +74,10 @@ def main():
     # multi-type edges carry more signal per traversal than single-type edges.
     pcst_cfg_by_graph = {name: dict(cfg["pcst"]) for name in graph_names}
     if "combined_cost_e" in cfg["pcst"]:
-        pcst_cfg_by_graph["combined"]["cost_e"] = cfg["pcst"]["combined_cost_e"]
+        # applies to combined AND its nulls (combined_random_structure, ...)
+        for _n in graph_names:
+            if _n == "combined" or _n.startswith("combined_"):
+                pcst_cfg_by_graph[_n]["cost_e"] = cfg["pcst"]["combined_cost_e"]
     for name, pcfg in pcst_cfg_by_graph.items():
         logger.info("PCST cfg for %s: topk=%d cost_e=%.2f", name, pcfg["topk"], pcfg["cost_e"])
 

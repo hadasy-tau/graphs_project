@@ -1,0 +1,10 @@
+condition,evidence_recall,full_hit_rate,precision,f1,avg_retrieved_size,n_queries,n_raw_queries,n_excluded_empty_gold
+combined_no_pcst,0.7897,0.5738,0.1424,0.2388,14.84,2255,2556,301
+combined_pcst,0.7093,0.4443,0.1919,0.2956,10.54,2255,2556,301
+dense_no_pcst,0.7986,0.5557,0.1411,0.2375,15,2255,2556,301
+entity_no_pcst,0.7969,0.5982,0.1519,0.252,14.24,2255,2556,301
+entity_pcst,0.684,0.4142,0.1668,0.259,12.75,2255,2556,301
+metadata_no_pcst,0.7757,0.5326,0.141,0.2363,14.75,2255,2556,301
+metadata_pcst,0.639,0.3424,0.1995,0.2942,9.61,2255,2556,301
+semantic_no_pcst,0.7789,0.5313,0.1463,0.2432,14.27,2255,2556,301
+semantic_pcst,0.6665,0.396,0.212,0.3108,9.17,2255,2556,301

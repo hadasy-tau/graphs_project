@@ -1,0 +1,56 @@
+{
+  "experiment_id": "mutual_knn_k25",
+  "created_at": "2026-07-31T13:31:58+00:00",
+  "base_config": "/content/graphrag/config/base.yaml",
+  "overrides": {
+    "mutual_knn_k": 25
+  },
+  "stages_requested": [
+    "02_build_graphs.py",
+    "03_run_retrieval.py",
+    "04_evaluate.py"
+  ],
+  "git": {
+    "sha": "0478e9191b5cc668430835f559892bfa87067eff",
+    "branch": "main",
+    "dirty": true
+  },
+  "python": "3.12.13",
+  "paths": {
+    "experiment_id": "mutual_knn_k25",
+    "config_path": "/content/graphrag/results/mutual_knn_k25/config.yaml",
+    "processed": "/content/graphrag/data/processed/p-138df97851",
+    "graphs": "/content/graphrag/data/graphs/g-4ed1e3e149",
+    "results": "/content/graphrag/results/mutual_knn_k25",
+    "retrieval": "/content/graphrag/results/mutual_knn_k25/retrieval",
+    "metrics": "/content/graphrag/results/mutual_knn_k25/metrics",
+    "logs": "/content/graphrag/results/mutual_knn_k25/logs"
+  },
+  "status": "ok",
+  "stage_runs": [
+    {
+      "script": "02_build_graphs.py",
+      "returncode": 0,
+      "duration_s": 99.3,
+      "finished_at": "2026-07-31T13:33:37+00:00",
+      "log": "logs/02_build_graphs.log",
+      "status": "ok"
+    },
+    {
+      "script": "03_run_retrieval.py",
+      "returncode": 0,
+      "duration_s": 1555.5,
+      "finished_at": "2026-07-31T13:59:32+00:00",
+      "log": "logs/03_run_retrieval.log",
+      "status": "ok"
+    },
+    {
+      "script": "04_evaluate.py",
+      "returncode": 0,
+      "duration_s": 0.6,
+      "finished_at": "2026-07-31T13:59:33+00:00",
+      "log": "logs/04_evaluate.log",
+      "status": "ok"
+    }
+  ]
+}

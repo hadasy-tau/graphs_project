@@ -3,16 +3,21 @@ import logging
 
 # Resolves the active config and every output path from the environment, and puts
 # the repo root on sys.path. Import before anything from src/.
-from experiment import METRICS, RETRIEVAL, ensure_dirs
+from experiment import METRICS, RETRIEVAL, cfg, ensure_dirs
 
 logger = logging.getLogger(__name__)
 
 
 def main():
-    from src.evaluation.evaluator import evaluate_all
+    from src.evaluation.evaluator import (
+        EXPECTED_CONDITIONS, evaluate_all, expected_with_nulls,
+    )
 
     ensure_dirs()
-    evaluate_all(RETRIEVAL, METRICS)
+    expected = (expected_with_nulls() if cfg.get("null_baselines", False)
+                else EXPECTED_CONDITIONS)
+    logger.info("Evaluating %d expected conditions", len(expected))
+    evaluate_all(RETRIEVAL, METRICS, expected=expected)
 
     # Pretty-print the summary table
     import csv

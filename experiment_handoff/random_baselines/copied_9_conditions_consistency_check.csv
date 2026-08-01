@@ -1,0 +1,9 @@
+column,max_abs_diff
+evidence_recall,0.0
+full_hit_rate,0.0
+precision,0.0
+f1,0.0
+avg_retrieved_size,0.0
+n_queries,0.0
+n_raw_queries,0.0
+n_excluded_empty_gold,0.0

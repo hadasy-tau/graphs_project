@@ -1,0 +1,37 @@
+# Written by scripts/experiment.py for experiment 'k17_pcst_cost025'.
+# base: /content/graphrag/config/base.yaml
+# overrides: {"mutual_knn_k": 17, "pcst.combined_cost_e": 0.125, "pcst.cost_e": 0.25}
+# created: 2026-07-31T16:57:35+00:00
+embedding:
+  model: BAAI/bge-large-en-v1.5
+  query_prefix: 'Represent this sentence for searching relevant passages: '
+  dim: 1024
+  batch_size: 64
+  max_tokens: 512
+ner:
+  model: en_core_web_lg
+  batch_size: 64
+  keep_types:
+  - PERSON
+  - ORG
+  - GPE
+  - LOC
+  - FAC
+  - EVENT
+  - PRODUCT
+  stop_entity_threshold: 0.2
+  canonicalize_threshold: 0.9
+mutual_knn_k: 17
+entity_graph:
+  min_shared_entities: 2
+metadata_graph:
+  fields:
+  - title
+  - author
+pcst:
+  topk: 6
+  topk_e: 5
+  cost_e: 0.25
+  combined_cost_e: 0.125
+dense_baseline:
+  k: null

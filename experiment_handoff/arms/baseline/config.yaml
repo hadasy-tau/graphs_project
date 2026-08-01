@@ -1,0 +1,37 @@
+# Written by scripts/experiment.py for experiment 'baseline'.
+# base: /content/graphrag/config/base.yaml
+# overrides: {}
+# created: 2026-07-31T12:56:07+00:00
+embedding:
+  model: BAAI/bge-large-en-v1.5
+  query_prefix: 'Represent this sentence for searching relevant passages: '
+  dim: 1024
+  batch_size: 64
+  max_tokens: 512
+ner:
+  model: en_core_web_lg
+  batch_size: 64
+  keep_types:
+  - PERSON
+  - ORG
+  - GPE
+  - LOC
+  - FAC
+  - EVENT
+  - PRODUCT
+  stop_entity_threshold: 0.2
+  canonicalize_threshold: 0.9
+mutual_knn_k: null
+entity_graph:
+  min_shared_entities: 2
+metadata_graph:
+  fields:
+  - title
+  - author
+pcst:
+  topk: 6
+  topk_e: 5
+  cost_e: 0.5
+  combined_cost_e: 0.25
+dense_baseline:
+  k: null

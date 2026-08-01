@@ -19,6 +19,11 @@ ner:
 #          min_shared=1)
 mutual_knn_k: null
 
+# Opt-in per arm: include the saved random_structure / shuffled_nodes
+# null graphs in stages 03-04. Not part of any fingerprint, so it does
+# not invalidate cached graphs.
+null_baselines: false
+
 entity_graph:
   min_shared_entities: 2
 
