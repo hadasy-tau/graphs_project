@@ -38,22 +38,24 @@
 \maketitle
 
 \begin{abstract}
-Retrieval-Augmented Generation (RAG) systems typically retrieve documents by textual similarity, potentially missing evidence that is only indirectly related to a query. GraphRAG addresses this by representing the corpus as a graph and retrieving subgraphs. However, the effect of different graph construction strategies on evidence retrieval quality remains poorly understood. We conduct a controlled comparison of four practical graph representations over the MultiHop-RAG benchmark - entity-based, metadata-based, semantic-similarity-based, and combined - under a fixed downstream pipeline using the Prize-Collecting Steiner Tree (PCST) retrieval algorithm. We find that at default PCST settings, semantic graph construction yields the most precise and compact retrieval at the cost of recall. After controlling for retrieved set size, however, precision differences between graph types largely collapse (from a 0.034 gap to under 0.003), while recall differences persist (spread $\approx$0.028 at matched size). At matched size, recall ordering coincides with oracle-connectivity ordering, consistent with graph structure constraining evidence recovery rather than retrieval precision. Random graph baselines confirm that real graph structure provides genuine signal: for 1-hop graph expansion (no-PCST), real graphs achieve 0.76--0.78 recall versus 0.24--0.40 for random structure at matched retrieved sizes. Under PCST, real graphs deliver substantially higher precision (0.17--0.20 vs.\ 0.07--0.08) while retrieving roughly half as many documents, indicating that graph construction meaningfully shapes the quality of PCST subgraph selection.
+Retrieval-Augmented Generation (RAG) systems typically retrieve documents by textual similarity, potentially missing evidence that is only indirectly related to a query. GraphRAG addresses this by representing the corpus as a graph and retrieving subgraphs, and different graph construction strategies - entity-based, metadata-based, semantic-similarity-based, or some combination - are commonly compared under a fixed retrieval pipeline to argue for one strategy over another. We show that such comparisons, at default settings, are largely confounded by retrieved-set size: over the MultiHop-RAG benchmark, under a fixed Prize-Collecting Steiner Tree (PCST) pipeline, the graph type that looks most precise at default settings simply returns the fewest documents, and once retrieved-set size is controlled for, precision differences between graph types almost entirely disappear. Recall differences, in contrast, persist after size control, and track a graph's oracle connectivity (the structural reachability of gold evidence) rather than any property of the retrieval algorithm. Random graph baselines confirm that this recall signal is genuine: real graph structure substantially outperforms random and shuffled graphs of matched size, both with and without PCST. Together, these results indicate that graph construction's main causal role in GraphRAG is to determine what evidence is structurally reachable at all, not to make retrieval more precise per document - and that evaluations which do not control for retrieved-set size risk attributing a size effect to graph quality.
 \end{abstract}
 
 \section{Introduction}
 
 Standard RAG systems retrieve documents by embedding similarity to the query. This approach works well when a query is answered by a single semantically similar document, but it can miss supporting evidence that is scattered across multiple documents connected only through shared entities, events, or metadata. GraphRAG \citep{edge2024graphrag} addresses this by encoding the document corpus as a graph and retrieving relevant subgraphs rather than individual documents.
 
-A central but underexplored question in GraphRAG is: \textit{how should the graph be constructed?} Documents can be linked via shared named entities, shared metadata, semantic embedding similarity, or a combination of these signals. Each strategy imposes a different topology and edge-attribute space on the same underlying documents, and the downstream retrieval algorithm - particularly a graph-optimization method like PCST - may respond to these differences in ways that are not obvious from the construction choice alone.
+A central but underexplored question in GraphRAG is: \textit{how should the graph be constructed?} Documents can be linked via shared named entities, shared metadata, semantic embedding similarity, or a combination of these signals. Prior comparisons of such strategies are typically run at a single, default configuration of the downstream retrieval algorithm, and any precision or recall gap observed there is attributed to the graph construction choice itself.
 
-This paper addresses that question through a controlled empirical comparison. We build four graph variants over the MultiHop-RAG knowledge base \citep{tang2024multihoprag}, keeping document nodes and the retrieval pipeline fixed while varying only how edges are constructed and represented. We evaluate evidence retrieval at the document level, measuring recall, precision, F1, and full-hit rate.
+We show that this attribution is often wrong, or at least incomplete. Because precision is mechanically related to how many documents are retrieved, a graph type that induces a downstream algorithm like PCST to return a smaller set will look more precise even if it is no better at identifying the correct evidence per document. Our central claim is: \textit{most of the apparent precision advantage of one graph construction strategy over another, at default settings, is a retrieved-set-size artifact rather than a genuine difference in evidence quality} - and once size is controlled for, what remains is a recall gap driven by the graph's structural reachability of gold evidence, not by anything the retrieval algorithm does with it.
+
+We establish this through a controlled empirical comparison. We build four graph variants over the MultiHop-RAG knowledge base \citep{tang2024multihoprag} - entity-based, metadata-based, semantic-similarity-based, and combined - keeping document nodes and the retrieval pipeline fixed while varying only how edges are constructed and represented. We evaluate evidence retrieval at the document level, measuring recall, precision, F1, and full-hit rate, both at default PCST settings and after explicitly controlling for retrieved-set size via a PCST hyperparameter sweep.
 
 Our contributions are:
 \begin{itemize}
-  \item A controlled comparison of entity-based, metadata-based, semantic-similarity, and combined graph construction under a shared PCST retrieval pipeline.
-  \item A PCST sensitivity analysis that disentangles retrieved-set-size effects from graph-type effects, revealing that precision differences largely collapse while recall differences persist after size control.
-  \item Random graph baselines (random structure and shuffled nodes) that confirm real graph construction provides genuine retrieval signal under both PCST and 1-hop expansion.
+  \item A demonstration that precision differences between graph construction strategies, as measured at default retrieval settings, largely collapse once retrieved-set size is controlled for - implying that a common style of GraphRAG comparison conflates graph quality with retrieval budget.
+  \item Evidence that the recall differences which \textit{do} survive size control track a graph's oracle connectivity (structural reachability of gold evidence), suggesting graph construction's primary causal role is determining what evidence is reachable at all, not how precisely it is scored.
+  \item Random graph baselines (random structure and shuffled nodes) that confirm real graph construction provides genuine retrieval signal beyond simply providing a graph-shaped scaffold for PCST, under both PCST and 1-hop expansion.
 \end{itemize}
 
 \section{Background and Related Work}
@@ -208,17 +210,14 @@ We report \textbf{oracle connectivity}: the fraction of gold document pairs (ded
   \label{tab:main-results}
 \end{table}
 
-\paragraph{Finding 1: Semantic PCST achieves the best precision and F1 at default settings.}
-Across all four normalized regimes ($k=10, 17, 25$), the PCST precision ordering is identical: semantic $>$ metadata $>$ combined $>$ entity. At $k=17$: semantic PCST precision 0.204, entity PCST precision 0.170, a gap of 0.034. This ordering is stable; the no-PCST ordering is not (it varies across regimes).
+\paragraph{Precision at default settings tracks retrieved-set size, not a stable graph-type ranking alone.}
+Across all four normalized regimes ($k=10, 17, 25$), the PCST precision ordering is identical: semantic $>$ metadata $>$ combined $>$ entity. At $k=17$: semantic PCST precision 0.204, entity PCST precision 0.170, a gap of 0.034. This ordering is stable, while the no-PCST ordering is not (it varies across regimes) - and the size ordering is the exact inverse of the precision ordering: entity returns the most documents (size 11.75), semantic the fewest (9.18). This inverse relationship is the first sign that semantic's apparent precision advantage may partly reflect returning fewer documents rather than more targeted retrieval; \Cref{sec:size-control} tests this directly.
 
-\paragraph{Finding 2: Semantic's precision advantage comes with lower recall.}
-The size ordering is the exact inverse of the precision ordering: entity returns the most documents (size 11.75), semantic the fewest (9.18). Semantic's precision advantage may therefore partly reflect returning fewer documents rather than more targeted retrieval.
+\paragraph{No graph condition beats dense on recall, though this comparison is itself unmatched for size.}
+In all four regimes, dense retrieval achieves higher recall than every graph PCST condition, and the only positive full-hit deltas relative to dense were observed at $k=10$ and did not replicate at other $k$ values. We note that, unlike the graph-vs-graph comparisons in this paper, this specific comparison is \textit{not} controlled for retrieved-set size: dense retrieves $K=11$--$15$ seed documents depending on regime, while graph PCST conditions retrieve $\approx$9--12. Given that precision and recall both depend mechanically on set size, a size-matched dense-vs-PCST comparison (analogous to \Cref{sec:size-control}) would be needed to determine whether dense's recall advantage reflects a genuinely better retrieval strategy or simply a larger retrieved set; we leave this comparison to future work (\S7).
 
-\paragraph{Finding 3: No graph condition beats dense on recall.}
-In all four regimes, dense retrieval achieves higher recall than every graph PCST condition. The only positive full-hit deltas relative to dense were observed at $k=10$ and did not replicate at other $k$ values.
-
-\paragraph{Finding 4: PCST consistently reduces recall but improves precision relative to No-PCST.}
-Across all graph types and regimes, PCST subgraph selection trades recall for precision compared to flat 1-hop expansion.
+\paragraph{PCST consistently trades recall for precision relative to No-PCST.}
+Across all graph types and regimes, PCST subgraph selection reduces recall while improving precision relative to flat 1-hop expansion, and produces a stable graph-type ranking where No-PCST does not (\S\ref{sec:pcst-role}).
 
 \subsection{Query Type Breakdown}
 
@@ -260,6 +259,7 @@ Across all graph types and regimes, PCST subgraph selection trades recall for pr
 \end{table}
 
 \subsection{PCST Sensitivity and Size Control}
+\label{sec:size-control}
 
 Because precision is mechanically linked to retrieved set size, we ran a PCST sensitivity analysis at $k=17$ by varying PCST hyperparameters - specifically, edge penalties (\texttt{cost\_e} $\in \{0.25, 0.5, 1.0\}$) and node selection thresholds (\texttt{topk} $\in \{3, 6, 9\}$) - to produce a range of retrieved set sizes, then interpolating metrics at matched sizes. \Cref{tab:size-control} shows the metric spread across all four graph types at several matched sizes, and \Cref{fig:pcst-sensitivity} visualizes these trajectories.
 
@@ -287,14 +287,11 @@ Because precision is mechanically linked to retrieved set size, we ran a PCST se
   \label{tab:size-control}
 \end{table}
 
-\paragraph{Finding 5: Precision differences largely collapse under size control.}
-At matched size 10, the precision spread across all four graph types is only 0.003 (versus 0.034 at default settings) - a $\approx$95\% reduction. F1 spread is 0.005. Differences this small are not distinguishable from noise without confidence intervals (not yet computed).
+\paragraph{Precision differences largely collapse under size control.}
+At matched size 10, the precision spread across all four graph types is only 0.003 (versus 0.034 at default settings) - a $\approx$95\% reduction, and F1 spread is 0.005. These differences are small enough that, absent confidence intervals (not yet computed; see \S7), we report them as \textit{not distinguishable from noise} rather than as a ranking.
 
-\paragraph{Finding 6: Recall differences persist under size control.}
-At matched size 10, the recall spread is 0.028, which is 10$\times$ larger than the precision spread. Recall ordering at size 10: combined (0.712) $>$ semantic (0.707) $>$ entity (0.686) $>$ metadata (0.683).
-
-\paragraph{Finding 7: Recall ordering coincides with oracle-connectivity ordering.}
-At $k=17$, the matched-size recall ordering (combined $>$ semantic $>$ entity $>$ metadata) exactly matches the oracle-connectivity ordering (0.695 $>$ 0.544 $>$ 0.487 $>$ 0.458), as visualized in \Cref{fig:oracle-vs-recall}. This pattern is consistent with structural reachability constraining evidence recovery after size effects are removed.
+\paragraph{Recall differences persist and track oracle connectivity.}
+At matched size 10, the recall spread is 0.028 - an order of magnitude larger than the precision spread - with ordering combined (0.712) $>$ semantic (0.707) $>$ entity (0.686) $>$ metadata (0.683). This exactly matches the oracle-connectivity ordering (0.695 $>$ 0.544 $>$ 0.487 $>$ 0.458; \Cref{fig:oracle-vs-recall}), consistent with structural reachability constraining evidence recovery once size effects are removed. We flag the obvious limitation: this correspondence rests on four graph types in a single regime, and a perfect rank match on four items has approximately 4\% probability by chance, so we describe it as \textit{consistent with} the reachability hypothesis rather than as a demonstration of it.
 
 \begin{figure}[t]
   \centering
@@ -303,9 +300,7 @@ At $k=17$, the matched-size recall ordering (combined $>$ semantic $>$ entity $>
   \label{fig:oracle-vs-recall}
 \end{figure}
 
-We note the limitation: this correspondence rests on four graph types in a single regime. A perfect rank match on four items has approximately 4\% probability by chance, so we phrase this as \textit{consistent with} the hypothesis rather than demonstrating it.
-
-Two directly measured near-matched pairs (requiring no interpolation) corroborate this:
+Two directly measured near-matched pairs (requiring no interpolation) corroborate the recall-connectivity correspondence:
 \begin{itemize}
   \item \textbf{Combined vs.\ Entity at size $\approx$9.89}: combined PCST (default, size 9.89) vs.\ entity PCST (cost\_e=1.0, size 9.89). Combined recall $+0.026$, full-hit $+0.034$, precision within 0.002.
   \item \textbf{Semantic vs.\ Metadata at size $\approx$9.70}: semantic PCST (cost\_e=0.25, size 9.70) vs.\ metadata PCST (default, size 9.71). Identical precision (0.197), semantic recall $+0.021$, full-hit $+0.040$.
@@ -313,7 +308,7 @@ Two directly measured near-matched pairs (requiring no interpolation) corroborat
 
 \subsection{Cross-Regime Comparison}
 
-\Cref{tab:cross-regime} compares PCST metrics across density regimes for each graph type. Note that cross-regime recall comparisons are confounded by different retrieval budgets $K$ (ranging 11--15 across regimes); within-regime comparisons are unaffected. The empirically bounded effect is $\approx$0.008 recall per additional retrieved document.
+\Cref{tab:cross-regime} compares PCST metrics across density regimes for each graph type. Note that cross-regime recall comparisons are confounded by different retrieval budgets $K$ (ranging 11--15 across regimes); within-regime comparisons are unaffected. We do not treat this table as a clean instrument for estimating a marginal recall-per-document rate, since regime changes alter graph topology and retrieved size simultaneously (entity's recall, for instance, is not monotonic in size across regimes); a cleaner estimate of this rate would come from the size-control sweep in \Cref{sec:size-control}, where topology is held fixed.
 
 \begin{table}[t]
   \centering
@@ -351,7 +346,7 @@ To determine whether real graph construction provides genuine retrieval signal--
   \item \textbf{Shuffled nodes}: the real graph's topology is preserved exactly, but the document--node correspondence is destroyed by permuting edge endpoints. Every structural statistic is unchanged; what changes is whether the edge connections align with actual document relationships.
 \end{itemize}
 
-\paragraph{Finding 8: Real graphs massively outperform random structure under no-PCST.}
+\paragraph{Real graphs massively outperform random structure under no-PCST.}
 Table~\ref{tab:random-noPCST} shows no-PCST retrieval at matched retrieved sizes ($\approx$12--13). Real graphs achieve 0.761--0.782 recall, while random-structure graphs achieve only 0.242--0.396 at the same output size. This is a gap of 0.36--0.54 recall points. Shuffled-node no-PCST is similarly low (0.245--0.397). The near-zero full-hit rates for random-structure and shuffled-nodes (0.003--0.012) versus 0.46--0.50 for real graphs confirm that 1-hop expansion from seeds only finds supporting evidence when the graph reflects genuine document relationships.
 
 \begin{table}[t]
@@ -388,7 +383,7 @@ Table~\ref{tab:random-noPCST} shows no-PCST retrieval at matched retrieved sizes
   \label{tab:random-noPCST}
 \end{table}
 
-\paragraph{Finding 9: Under PCST, real graphs achieve higher recall at half the retrieved size.}
+\paragraph{Under PCST, real graphs achieve higher recall at half the retrieved size.}
 Table~\ref{tab:random-PCST} compares real PCST to random-baseline PCST. A key complication is that random-structure and shuffled-nodes PCST return substantially larger subgraphs ($\approx$19--23 documents) compared to real PCST ($\approx$9--12 documents). This size difference confounds a direct recall comparison, since more documents generally increases recall. Despite this, real PCST achieves higher recall than all null-model PCST conditions while retrieving roughly half as many documents. For example, entity real PCST achieves recall 0.705 at size 11.75, while entity random-structure PCST achieves only 0.647 at size 22.20. The precision gap is even more dramatic: real PCST precision (0.170--0.204) is approximately 2.5$\times$ higher than null-model PCST precision (0.071--0.084).
 
 The larger PCST output size for null models reflects that PCST on a random graph must reach farther to collect query-relevant nodes---the graph's topology does not concentrate evidence, so the prize-optimal subtree spans more documents. This in itself is informative: real graph construction enables PCST to make compact, high-quality selections that random connectivity cannot.
@@ -436,12 +431,16 @@ Two mechanisms jointly explain the apparent precision advantage. First, semantic
 Precision is primarily a function of retrieved set size, but recall also depends on \textit{which} documents are retrieved. The graph construction strategy determines what neighbors are reachable from the seed documents; if gold evidence is not structurally reachable, no retrieval or scoring improvement can recover it. The correspondence between matched-size recall and oracle connectivity at $k=17$ is consistent with this interpretation: the combined graph, which has the highest oracle connectivity (0.695), also achieves the highest recall at matched size, while metadata, with the lowest oracle connectivity (0.458), achieves the lowest recall.
 
 \paragraph{What is the role of PCST?}
+\label{sec:pcst-role}
 Comparing No-PCST to PCST across all graph types and regimes reveals a consistent pattern: PCST reduces recall (by trimming the retrieved set) while improving precision. PCST produces stable graph-type rankings across regimes; No-PCST rankings are noisier. This stability is a separate question from \citet{sade2026exgraphrag}'s semantic-structural mismatch finding, which concerns how a GNN encoder attributes importance within an already-selected subgraph rather than which nodes PCST selects in the first place; we do not draw on that result here beyond the motivation given in \S2.
 
 \paragraph{Does graph construction provide genuine signal?}
 The random baselines resolve the key open question: yes. Under 1-hop expansion (no-PCST), real graphs achieve 0.76--0.78 recall at retrieved sizes of $\approx$13 while random-structure graphs achieve only 0.24--0.40 at the same sizes---a gap that reflects real edges connecting evidence documents versus random edges that do not. Under PCST, real graphs retrieve fewer documents ($\approx$10 vs.\ $\approx$22 for null models) while achieving higher recall and 2.5$\times$ higher precision, indicating that real graph topology meaningfully guides PCST's subgraph selection. The shuffled-nodes null isolates the document--topology alignment: even when the graph's structural statistics are exactly preserved, destroying the correspondence between documents and edges degrades performance to near-random levels. These results confirm that the specific document-to-document connections matter, not merely the presence of a graph structure.
 
-Despite this, no graph PCST condition surpasses dense retrieval on recall in any tested regime. PCST's precision-recall tradeoff is an inherent design choice: subgraph compactness comes at the cost of coverage. Graph construction determines the quality ceiling of this tradeoff---higher oracle connectivity enables better recall at fixed output size---but dense retrieval with $K=13$ seeds remains the strongest recall baseline.
+Despite this, no graph PCST condition surpasses dense retrieval on recall in any tested regime (with the size caveat noted in \S5.2). PCST's precision-recall tradeoff is an inherent design choice: subgraph compactness comes at the cost of coverage. Graph construction determines the quality ceiling of this tradeoff---higher oracle connectivity enables better recall at fixed output size---but dense retrieval with $K=13$ seeds remains the strongest recall baseline in our experiments.
+
+\paragraph{If dense wins on recall, why use GraphRAG at all?}
+Our results place a specific, narrower burden of proof on graph-based retrieval than "higher recall than dense retrieval": that burden is not met here. What our data \textit{do} support is a compactness argument. At $k=17$, real-graph PCST retrieves $\approx$9--12 documents for recall in the 0.68--0.71 range, while dense retrieval needs $K=13$ seed documents to reach a comparable 0.799. When the retrieved set is passed on to a downstream LLM, cost, latency, and context-window pressure scale with retrieved size, so a retrieval method that reaches similar recall with roughly half as many documents is a real practical advantage even without a recall win - and the random-baseline results (\S\ref{sec:random-baselines}) show this compactness is not free: it depends on the graph's structure genuinely aligning with document relationships, not merely on having some graph to prune. We do not claim additional benefits (e.g., interpretability of the retrieved subgraph, or improved multi-hop reasoning from explicit relational context) since we do not measure them; these remain open questions for future evaluation of GraphRAG pipelines under matched retrieval budgets.
 
 \section{Limitations and Future Work}
 
@@ -461,19 +460,18 @@ Matched-size precision and F1 differences in the $\approx$0.002--0.005 range are
 \paragraph{Other limitations.}
 Threshold values were calibrated then fixed rather than exhaustively optimized. The PCST sensitivity sweep did not vary \texttt{topk\_e}. Budget $K$ varies across regimes (11--15), confounding cross-regime recall comparisons. Mutual $k$-NN retains only $\approx$50\% of $k$ as realized average degree.
 
+\paragraph{Dense-vs-graph comparison is not size-matched.}
+Unlike our graph-vs-graph comparisons, the finding that dense retrieval beats every graph PCST condition on recall (\S5.2) is confounded by set size: dense retrieves $K=11$--$15$ seeds while graph PCST conditions retrieve $\approx$9--12 documents. Applying the same interpolation approach used in \Cref{sec:size-control} to a dense-vs-PCST comparison at matched size is a direct extension we leave to future work; it could either strengthen the recall finding (if dense remains ahead per document) or substantially qualify it (if the gap shrinks to a size effect, mirroring the precision result).
+
 \section{Conclusion}
 
-We conducted a controlled comparison of four graph construction strategies - entity-based, metadata-based, semantic-similarity-based, and combined - for evidence retrieval in multi-hop RAG, using the MultiHop-RAG benchmark and a fixed G-Retriever/PCST pipeline. Our key findings are:
+Comparisons of GraphRAG construction strategies are typically run at a single, default retrieval configuration, and any observed precision or recall gap is attributed to the graph construction choice. Using a controlled comparison of four graph construction strategies - entity-based, metadata-based, semantic-similarity-based, and combined - over MultiHop-RAG with a fixed G-Retriever/PCST pipeline, we show that this attribution is largely mistaken for precision: at default settings, semantic graph construction looks most precise and compact, but after controlling for retrieved-set size, the precision gap between graph types shrinks by $\approx$95\% (from 0.034 to under 0.003) to a point indistinguishable from noise without further statistical testing.
 
-\begin{itemize}
-  \item At default PCST settings, semantic graph construction yields the most precise and compact retrieval across all density regimes, but at the cost of recall.
-  \item After controlling for retrieved set size, precision differences between graph types largely collapse ($\approx$95\% reduction from 0.034 to under 0.003), while recall differences persist (spread $\approx$0.028 at matched size 10).
-  \item At matched size, recall ordering coincides with oracle-connectivity ordering (combined $>$ semantic $>$ entity $>$ metadata), consistent with structural reachability constraining evidence recovery.
-  \item No graph condition surpasses dense retrieval on recall in any tested regime; PCST's compactness trades recall for precision throughout.
-  \item Random graph baselines confirm that real graph construction provides genuine signal: under 1-hop expansion (no-PCST), real graphs achieve 0.76--0.78 recall at matched retrieved sizes versus 0.24--0.40 for random structure; under PCST, real graphs deliver 2.5$\times$ higher precision while retrieving half as many documents.
-\end{itemize}
+Recall tells a different story. The recall spread that survives size control ($\approx$0.028) is an order of magnitude larger than the surviving precision spread, and its ordering across graph types (combined $>$ semantic $>$ entity $>$ metadata) matches the ordering of oracle connectivity - the structural reachability of gold evidence in each graph. This is consistent with graph construction's main causal lever being \textit{what evidence is reachable at all}, rather than how precisely a downstream algorithm scores it, though we hold this as a hypothesis consistent with four data points in one regime rather than a demonstrated law. Random graph baselines corroborate that this recall signal is genuine and not an artifact of merely having graph structure to prune: real graphs substantially outperform random and shuffled graphs of matched size, both with and without PCST, and shuffled-node graphs (identical structural statistics, scrambled document correspondence) perform near chance - confirming it is the specific document-to-document connections that matter.
 
-Together these findings clarify that the apparent precision advantage of semantic graph construction largely reduces to retrieved set size, not a fundamental topological superiority; that recall differences across graph types reflect structural reachability of gold evidence; and that real document--document connections---not merely the presence of a graph---drive the improvement over random structure.
+No graph condition beats dense retrieval on recall in our experiments, though that comparison is not itself size-matched and we do not treat it as final (\S7). Graph-based retrieval's demonstrated advantage here is compactness: comparable recall to dense retrieval at roughly half the retrieved size, and only when the graph's structure genuinely aligns with document relationships.
+
+Our broader takeaway is methodological: in this setting, retrieval budget - not graph construction - is the primary determinant of PCST precision, while graph construction's primary effect on recall operates through structural reachability rather than retrieval-algorithm behavior. Future GraphRAG evaluations that compare graph construction strategies should therefore control for retrieved-set size before attributing precision differences to graph quality, rather than relying on comparisons at a single default configuration of the retrieval algorithm.
 
 \section*{Limitations}
 
@@ -520,7 +518,7 @@ Experiments were conducted in Google Colab. The authors thank each other for the
 \section{Full Results Across Regimes}
 \label{sec:full-results}
 
-\noindent This section details the retrieval metrics across the three mutual $k$-NN density regimes using the default PCST hyperparameters. Note that the PCST hyperparameter sweep (varying edge weights and node prizes) was conducted exclusively on the $k=17$ regime to control for retrieved set size, as detailed in Section 5.4.
+\noindent This section details the retrieval metrics across the three mutual $k$-NN density regimes using the default PCST hyperparameters. Note that the PCST hyperparameter sweep (varying edge weights and node prizes) was conducted exclusively on the $k=17$ regime to control for retrieved set size, as detailed in \Cref{sec:size-control}.
 \vspace{0.5em} % Small spacing adjustment
 
 \begin{table}[htbp]
