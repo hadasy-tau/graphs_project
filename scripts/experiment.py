@@ -6,7 +6,7 @@ Args (CLI, when run as a script):
   --id, --set       run a single experiment with the given overrides
   --id-prefix       prefix for auto-generated experiment ids
   --base-config     YAML to start from (default config/base.yaml)
-  --stages          which of 01-05 to run (default 01,02,03,04)
+  --stages          which of 01-04 to run (default 01,02,03,04)
   --force           delete results/<id>/ first, so every stage reruns
   --force-graphs    delete this config's graph dir first, so stage 2 rebuilds
   --prune-graphs    delete the graph dir once every stage succeeded
@@ -16,7 +16,7 @@ Args (CLI, when run as a script):
 
 Output:
   results/<experiment_id>/config.yaml, manifest.json, logs/, and the
-  retrieval/ and metrics/ outputs of stages 2-5. Caches under data/ are
+  retrieval/ and metrics/ outputs of stages 2-4. Caches under data/ are
   keyed by a fingerprint of the config (see PREPROC_KEYS/GRAPH_KEYS below),
   not by experiment id, so unrelated experiments can share cached graphs.
 """
@@ -68,7 +68,6 @@ STAGES: dict[str, list[str]] = {
     "02": ["02_build_graphs.py"],
     "03": ["03_run_retrieval.py"],
     "04": ["04_evaluate.py"],
-    "05": ["05_analyze_results.py"],
 }
 DEFAULT_STAGES = "02,03,04"
 
@@ -283,7 +282,7 @@ def parse_args(argv=None):
     p.add_argument("--base-config", default=str(ROOT / "config" / "base.yaml"),
                    help="YAML to start from (default config/base.yaml)")
     p.add_argument("--stages", default=DEFAULT_STAGES,
-                   help=f"comma separated: 01,02,03,04,05 or 'all' (default {DEFAULT_STAGES}); "
+                   help=f"comma separated: 01,02,03,04 or 'all' (default {DEFAULT_STAGES}); "
                         "a script stem such as 03_entity_pcst also works")
     p.add_argument("--force", action="store_true",
                    help="delete results/<id>/ first, so every stage reruns")

@@ -233,8 +233,13 @@ def test_pipeline_smoke():
 
     def run_pcst(q_emb, graph_name):
         data, nodes_df, edges_df = graphs[graph_name]
+        # Mirrors scripts/03_run_retrieval.py: combined's multi-type edges get a
+        # lower edge cost so this script and the production runner agree on
+        # combined_pcst's output.
+        cost_e = pcst_cfg.get("combined_cost_e", pcst_cfg["cost_e"]) \
+            if graph_name == "combined" else pcst_cfg["cost_e"]
         return retrieve_with_pcst(q_emb, data, nodes_df, edges_df, topk=pcst_cfg["topk"],
-                                  topk_e=pcst_cfg["topk_e"], cost_e=pcst_cfg["cost_e"])
+                                  topk_e=pcst_cfg["topk_e"], cost_e=cost_e)
 
     # The non-PCST conditions need a K. Match it to how many documents PCST
     # returns on average, or a condition could win on recall just by returning
@@ -252,6 +257,23 @@ def test_pipeline_smoke():
     all_sims = precompute_similarities(query_embs, doc_embs)
     adjs = {n: build_adj(graphs[n][0]) for n in GRAPH_NAMES}
 
+    # No-PCST doesn't just expand from k_baseline seeds: scripts/03_run_retrieval.py
+    # (mirroring _retrieval_common.calibrate_seed_k) seeds with a smaller, per-graph
+    # seed_k so that AFTER 1-hop expansion the set lands near k_baseline, then
+    # reranks the expansion back down to k_baseline by similarity. Mirror both
+    # steps here, or this condition tests a different procedure than production.
+    seed_k_by_graph = {}
+    for name in GRAPH_NAMES:
+        data, adj = graphs[name][0], adjs[name]
+        expand_sizes = [
+            len(retrieve_graph_neighborhood(all_sims[i], data, k=k_baseline,
+                                            expand_hops=1, adj=adj))
+            for i in range(len(queries))
+        ]
+        ratio = (sum(expand_sizes) / len(expand_sizes)) / k_baseline
+        seed_k_by_graph[name] = max(1, round(k_baseline / ratio))
+        print(f"{name}: seed_k={seed_k_by_graph[name]} (expansion ratio {ratio:.2f})")
+
     for label, graph_name, mode in conditions:
         results = []
         for i, q in enumerate(queries):
@@ -261,8 +283,8 @@ def test_pipeline_smoke():
                 retrieved = run_pcst(query_embs[i], graph_name)
             else:
                 retrieved = retrieve_graph_neighborhood(
-                    all_sims[i], graphs[graph_name][0], k=k_baseline,
-                    expand_hops=1, adj=adjs[graph_name])
+                    all_sims[i], graphs[graph_name][0], k=seed_k_by_graph[graph_name],
+                    expand_hops=1, adj=adjs[graph_name], rerank_to=k_baseline)
             results.append({
                 "query_id": q["query_id"], "query": q["query"],
                 "question_type": q["question_type"],

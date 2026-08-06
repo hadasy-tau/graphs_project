@@ -49,8 +49,8 @@ def _pcst_config_hash() -> str:
 def calibrate_k(queries, query_embs) -> int:
     """PCST on entity graph for 50 queries; return rounded average output size.
 
-    Result is cached to data/processed/k_baseline.json keyed by a hash of the
-    PCST config, so the cache auto-invalidates when topk/cost_e/topk_e change.
+    Result is cached to GRAPHS/k_baseline.json keyed by a hash of the PCST
+    config, so the cache auto-invalidates when topk/cost_e/topk_e change.
     """
     cfg_hash = _pcst_config_hash()
     cache_key = f"k_baseline_{cfg_hash}"

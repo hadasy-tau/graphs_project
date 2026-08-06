@@ -4,6 +4,13 @@ tests/results/
 # Not ignored: tests/fixtures/*.jsonl is committed on purpose so the
 # smoke test runs offline.
 
+# data/ (embeddings, graphs) and results/ (per-experiment retrieval/metrics) are
+# Drive-only per experiment_handoff/experiment_decisions_and_limitations.md #14 -
+# regenerable from scripts/01-04, not meant to be committed. The curated,
+# committed record of each arm's results lives in experiment_handoff/arms/.
+data/
+results/
+
 __pycache__/
 *.py[cod]
 .pytest_cache/

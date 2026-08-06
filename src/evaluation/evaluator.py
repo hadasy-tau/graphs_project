@@ -157,7 +157,7 @@ def _require_all_conditions(results_dir: Path, found: set[str],
 def _warn_unexpected_files(results_dir: Path, found: set[str],
                            expected: set[str] = EXPECTED_CONDITIONS) -> None:
     """Stale result files from earlier experiments must not enter the summary."""
-    unexpected = found - EXPECTED_CONDITIONS
+    unexpected = found - expected
     if unexpected:
         logger.warning(
             "Ignoring %d unexpected .jsonl file(s) in %s: %s. Only the %d expected "

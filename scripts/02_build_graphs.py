@@ -151,8 +151,13 @@ def _write_stats(datas: dict, queries: list[dict]) -> None:
 def _target_knn_k(target_avg_degree: float, n_nodes: int) -> int:
     """Estimate mutual k-NN k to approximately match a target average degree.
 
-    For mutual k-NN on N nodes, the expected number of mutual edges is roughly
-    k (since an edge is mutual with probability ~k/N). So avg_degree ≈ k.
+    Uses avg_degree ≈ k as a rough starting point. In practice mutual k-NN
+    retains only ~50% of k as realized average degree (measured 0.46-0.61
+    across graph types and k), so this systematically undershoots the target
+    by roughly 2x. Kept as-is because k=17 (derived this way, in the baseline
+    regime) is the paper's central regime and changing the derivation now
+    would invalidate that framing - this is a known, documented limitation,
+    not a bug to silently correct.
     """
     k = max(1, round(target_avg_degree))
     return min(k, n_nodes - 1)

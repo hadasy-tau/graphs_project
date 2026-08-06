@@ -42,6 +42,7 @@ pcst:
   topk: 3
   topk_e: 5
   cost_e: 0.5
+  combined_cost_e: 0.25
 
 dense_baseline:
   k: null   # null => calibrated to the entity-PCST average output size
